@@ -121,6 +121,10 @@ export function AssetForm({
   // Search US stocks when typing
   const { data: stocks = [] } = useQuery<USStock[]>({
     queryKey: ["/api/stocks/search", symbolSearch],
+    queryFn: async () => {
+      const response = await fetch(`/api/stocks/search?q=${encodeURIComponent(symbolSearch)}`);
+      return response.json();
+    },
     enabled: assetType === "abd-hisse" && symbolSearch.length > 0,
     staleTime: Infinity,
   });
