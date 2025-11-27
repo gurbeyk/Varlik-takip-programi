@@ -71,21 +71,20 @@ export const assets = pgTable("assets", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertAssetSchema = createInsertSchema(assets).omit({
+const baseAssetSchema = createInsertSchema(assets).omit({
   id: true,
   userId: true,
   createdAt: true,
   updatedAt: true,
-}).refine((data) => {
-  // Handle purchaseDate as either string or Date
-  if (typeof data.purchaseDate === 'string' && data.purchaseDate) {
-    try {
-      data.purchaseDate = new Date(data.purchaseDate);
-    } catch {
-      return false;
-    }
-  }
-  return true;
+});
+
+export const insertAssetSchema = baseAssetSchema.extend({
+  purchaseDate: z.union([
+    z.date(),
+    z.string().transform((val) => val ? new Date(val) : undefined).nullable(),
+    z.null(),
+    z.undefined()
+  ]).optional(),
 });
 
 export type InsertAsset = z.infer<typeof insertAssetSchema>;
