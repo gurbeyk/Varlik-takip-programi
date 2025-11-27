@@ -5,7 +5,7 @@ import { PerformanceChart } from "@/components/performance-chart";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, TrendingDown, Target, AlertTriangle } from "lucide-react";
-import type { Asset, PerformanceSnapshot } from "@shared/schema";
+import type { Asset, PerformanceSnapshot, Transaction } from "@shared/schema";
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
   hisse: "Hisse Senedi",
@@ -32,7 +32,11 @@ export default function Reports() {
     queryKey: ["/api/portfolio/performance"],
   });
 
-  const isLoading = assetsLoading || snapshotsLoading;
+  const { data: transactions = [], isLoading: transactionsLoading } = useQuery<Transaction[]>({
+    queryKey: ["/api/transactions"],
+  });
+
+  const isLoading = assetsLoading || snapshotsLoading || transactionsLoading;
 
   // Calculate metrics
   const totalValue = assets.reduce((sum, asset) => {
@@ -71,6 +75,11 @@ export default function Reports() {
     return acc;
   }, {} as Record<string, number>);
 
+  // Calculate realized P&L from sell transactions
+  const realizedPnL = transactions
+    .filter(t => t.type === 'sell')
+    .reduce((sum, t) => sum + Number(t.realizedPnL), 0);
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -106,7 +115,7 @@ export default function Reports() {
       </div>
 
       {/* Summary Metrics */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -142,6 +151,31 @@ export default function Reports() {
             </p>
             <p className="text-sm text-muted-foreground">
               {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Realize Edilmiş Kar/Zarar
+            </CardTitle>
+            {realizedPnL >= 0 ? (
+              <TrendingUp className="w-4 h-4 text-emerald-500" />
+            ) : (
+              <TrendingDown className="w-4 h-4 text-orange-500" />
+            )}
+          </CardHeader>
+          <CardContent>
+            <p className={`text-2xl font-bold ${
+              realizedPnL >= 0 
+                ? 'text-emerald-600 dark:text-emerald-400' 
+                : 'text-orange-600 dark:text-orange-400'
+            }`} data-testid="text-realized-pnl">
+              {realizedPnL >= 0 ? '+' : ''}{formatCurrency(realizedPnL)}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {transactions.filter(t => t.type === 'sell').length} satış işlemi
             </p>
           </CardContent>
         </Card>

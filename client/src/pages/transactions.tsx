@@ -109,6 +109,7 @@ export default function Transactions() {
                     <TableHead className="text-right">Miktar</TableHead>
                     <TableHead className="text-right">Fiyat</TableHead>
                     <TableHead className="text-right">Toplam</TableHead>
+                    <TableHead className="text-right">Kar/Zarar</TableHead>
                     <TableHead className="text-right">Tarih</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -161,6 +162,15 @@ export default function Transactions() {
                             : 'text-red-600 dark:text-red-400'
                         }`}>
                           {isBuy ? '+' : '-'}{formatCurrency(Number(transaction.totalAmount))}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {transaction.type === 'sell' && transaction.realizedPnL ? (
+                            <span className={Number(transaction.realizedPnL) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-orange-600 dark:text-orange-400'}>
+                              {Number(transaction.realizedPnL) >= 0 ? '+' : ''}{formatCurrency(Number(transaction.realizedPnL))}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right text-muted-foreground">
                           {formatDate(transaction.createdAt)}

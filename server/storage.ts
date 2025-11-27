@@ -131,7 +131,8 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(performanceSnapshots)
       .where(eq(performanceSnapshots.userId, userId))
-      .where(eq(performanceSnapshots.month, month));
+      .where(eq(performanceSnapshots.month, month))
+      .limit(1);
 
     if (existing.length > 0) {
       const [snapshot] = await db
