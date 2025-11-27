@@ -37,7 +37,7 @@ export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
 // Asset types enum
-export const assetTypes = ['hisse', 'etf', 'kripto', 'gayrimenkul'] as const;
+export const assetTypes = ['hisse', 'abd-hisse', 'etf', 'kripto', 'gayrimenkul'] as const;
 export type AssetType = typeof assetTypes[number];
 
 // Assets table for portfolio tracking
@@ -45,12 +45,13 @@ export const assets = pgTable("assets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar("name", { length: 255 }).notNull(),
-  type: varchar("type", { length: 50 }).notNull(), // hisse, etf, kripto, gayrimenkul
+  type: varchar("type", { length: 50 }).notNull(), // hisse, abd-hisse, etf, kripto, gayrimenkul
   symbol: varchar("symbol", { length: 50 }),
   quantity: decimal("quantity", { precision: 18, scale: 8 }).notNull(),
   purchasePrice: decimal("purchase_price", { precision: 18, scale: 2 }).notNull(),
   currentPrice: decimal("current_price", { precision: 18, scale: 2 }).notNull(),
   currency: varchar("currency", { length: 10 }).default('TRY'),
+  purchaseDate: timestamp("purchase_date"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
