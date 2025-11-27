@@ -36,6 +36,20 @@ export const users = pgTable("users", {
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
+// US Stocks reference table
+export const usStocks = pgTable(
+  "us_stocks",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    symbol: varchar("symbol", { length: 10 }).notNull().unique(),
+    name: varchar("name", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [index("IDX_us_stocks_symbol").on(table.symbol)]
+);
+
+export type USStock = typeof usStocks.$inferSelect;
+
 // Asset types enum
 export const assetTypes = ['hisse', 'abd-hisse', 'etf', 'kripto', 'gayrimenkul'] as const;
 export type AssetType = typeof assetTypes[number];

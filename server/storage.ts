@@ -3,6 +3,7 @@ import {
   assets,
   transactions,
   performanceSnapshots,
+  usStocks,
   type User,
   type UpsertUser,
   type Asset,
@@ -10,9 +11,10 @@ import {
   type Transaction,
   type InsertTransaction,
   type PerformanceSnapshot,
+  type USStock,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, ilike } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -33,6 +35,10 @@ export interface IStorage {
   // Performance snapshot operations
   getPerformanceSnapshots(userId: string): Promise<PerformanceSnapshot[]>;
   createOrUpdatePerformanceSnapshot(userId: string, month: string, totalAssets: number, totalDebt: number, netWorth: number): Promise<PerformanceSnapshot>;
+  
+  // US Stocks operations
+  searchUSStocks(query: string): Promise<USStock[]>;
+  seedUSStocks(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
