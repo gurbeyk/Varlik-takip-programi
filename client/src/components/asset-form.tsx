@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -19,6 +20,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -27,7 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
+import { Check } from "lucide-react";
 import type { Asset } from "@shared/schema";
 
 const assetFormSchema = z.object({
@@ -44,10 +58,7 @@ const assetFormSchema = z.object({
     (val) => !isNaN(Number(val)) && Number(val) >= 0,
     "Geçerli bir fiyat giriniz"
   ),
-  currentPrice: z.string().min(1, "Güncel fiyat zorunludur").refine(
-    (val) => !isNaN(Number(val)) && Number(val) >= 0,
-    "Geçerli bir fiyat giriniz"
-  ),
+  currentPrice: z.string().optional(),
   purchaseDate: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -71,6 +82,12 @@ const ASSET_TYPES = [
   { value: "gayrimenkul", label: "Gayrimenkul", currency: "TRY" },
 ];
 
+interface USStock {
+  id: string;
+  symbol: string;
+  name: string;
+}
+
 export function AssetForm({
   open,
   onOpenChange,
@@ -80,7 +97,8 @@ export function AssetForm({
   mode = "create",
 }: AssetFormProps) {
   const [currency, setCurrency] = useState(defaultValues?.currency || "TRY");
-  const [fetchingPrice, setFetchingPrice] = useState(false);
+  const [symbolSearch, setSymbolSearch] = useState("");
+  const [openCombobox, setOpenCombobox] = useState(false);
 
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetFormSchema),
@@ -98,65 +116,43 @@ export function AssetForm({
     },
   });
 
+  const assetType = form.watch("type");
+
+  // Search US stocks when typing
+  const { data: stocks = [] } = useQuery<USStock[]>({
+    queryKey: ["/api/stocks/search", symbolSearch],
+    enabled: assetType === "abd-hisse" && symbolSearch.length > 0,
+    staleTime: Infinity,
+  });
+
   const handleAssetTypeChange = (value: string) => {
     form.setValue("type", value as any);
     const selectedType = ASSET_TYPES.find(t => t.value === value);
     if (selectedType) {
       setCurrency(selectedType.currency);
     }
+    // Reset currentPrice when changing type to abd-hisse
+    if (value === "abd-hisse") {
+      form.setValue("currentPrice", "");
+    }
   };
 
-  const handleFetchCurrentPrice = async () => {
-    const symbol = form.getValues("symbol");
-    const type = form.getValues("type");
-    
-    if (!symbol) {
-      alert("Lütfen sembol giriniz");
-      return;
-    }
-
-    setFetchingPrice(true);
-    try {
-      let price = null;
-      
-      if (type === "kripto") {
-        // Use CoinGecko free API for crypto
-        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${symbol.toLowerCase()}&vs_currencies=usd`);
-        const data = await response.json();
-        const cryptoId = Object.keys(data)[0];
-        if (data[cryptoId] && data[cryptoId].usd) {
-          price = data[cryptoId].usd;
-        }
-      } else if (type === "abd-hisse") {
-        // Use Alpha Vantage free API for US stocks
-        // Note: Alpha Vantage requires API key, so we'll use a simple fallback
-        const response = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}`);
-        const data = await response.json();
-        if (data.quoteResponse?.result?.[0]) {
-          price = data.quoteResponse.result[0].regularMarketPrice;
-        }
-      }
-
-      if (price) {
-        form.setValue("currentPrice", price.toFixed(2));
-      } else {
-        alert("Fiyat alınamadı. Lütfen sembolü kontrol ediniz.");
-      }
-    } catch (error) {
-      console.error("Error fetching price:", error);
-      alert("Fiyat alınırken hata oluştu");
-    } finally {
-      setFetchingPrice(false);
-    }
+  const handleSelectStock = (stock: USStock) => {
+    form.setValue("symbol", stock.symbol);
+    form.setValue("name", stock.name);
+    setOpenCombobox(false);
+    setSymbolSearch("");
   };
 
   const handleSubmit = (values: AssetFormValues) => {
+    // For abd-hisse, ensure currentPrice is set
+    if (assetType === "abd-hisse" && !values.currentPrice) {
+      values.currentPrice = values.purchasePrice;
+    }
     onSubmit({ ...values, currency });
     form.reset();
     setCurrency("TRY");
   };
-
-  const assetType = form.watch("type");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -201,17 +197,75 @@ export function AssetForm({
 
             <FormField
               control={form.control}
-              name="name"
+              name="symbol"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Varlık Adı</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={assetType === "abd-hisse" ? "Örn: Apple Inc" : "Örn: Garanti Bankası"}
-                      {...field}
-                      data-testid="input-asset-name"
-                    />
-                  </FormControl>
+                  <FormLabel>
+                    Sembol {assetType === "abd-hisse" ? "" : "(Opsiyonel)"}
+                  </FormLabel>
+                  {assetType === "abd-hisse" ? (
+                    <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between"
+                          data-testid="input-asset-symbol"
+                        >
+                          {field.value
+                            ? stocks.find((s) => s.symbol === field.value)?.symbol ||
+                              field.value
+                            : "Sembol seçiniz..."}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Sembol ara..."
+                            value={symbolSearch}
+                            onValueChange={setSymbolSearch}
+                          />
+                          <CommandList>
+                            <CommandEmpty>
+                              {symbolSearch ? "Sonuç bulunamadı" : "Yazarak arayınız"}
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {stocks.map((stock) => (
+                                <CommandItem
+                                  key={stock.id}
+                                  value={stock.symbol}
+                                  onSelect={() => handleSelectStock(stock)}
+                                  data-testid={`stock-option-${stock.symbol}`}
+                                >
+                                  <Check
+                                    className={`mr-2 h-4 w-4 ${
+                                      field.value === stock.symbol
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    }`}
+                                  />
+                                  <div className="flex-1">
+                                    <div className="font-medium">{stock.symbol}</div>
+                                    <div className="text-sm text-muted-foreground">
+                                      {stock.name}
+                                    </div>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <FormControl>
+                      <Input
+                        placeholder="Örn: GARAN"
+                        {...field}
+                        data-testid="input-asset-symbol"
+                      />
+                    </FormControl>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -219,35 +273,18 @@ export function AssetForm({
 
             <FormField
               control={form.control}
-              name="symbol"
+              name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Sembol {assetType === "abd-hisse" || assetType === "kripto" ? "" : "(Opsiyonel)"}</FormLabel>
-                  <div className="flex gap-2">
-                    <FormControl>
-                      <Input
-                        placeholder={assetType === "abd-hisse" ? "Örn: AAPL" : assetType === "kripto" ? "Örn: bitcoin" : "Örn: GARAN"}
-                        {...field}
-                        data-testid="input-asset-symbol"
-                      />
-                    </FormControl>
-                    {(assetType === "abd-hisse" || assetType === "kripto") && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleFetchCurrentPrice}
-                        disabled={fetchingPrice || !field.value}
-                        data-testid="button-fetch-price"
-                      >
-                        {fetchingPrice ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          "Fiyat Çek"
-                        )}
-                      </Button>
-                    )}
-                  </div>
+                  <FormLabel>Varlık Adı</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={assetType === "abd-hisse" ? "Otomatik doldurulacak" : "Örn: Garanti Bankası"}
+                      readOnly={assetType === "abd-hisse"}
+                      {...field}
+                      data-testid="input-asset-name"
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -293,7 +330,7 @@ export function AssetForm({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className={assetType === "abd-hisse" ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
               <FormField
                 control={form.control}
                 name="purchasePrice"
@@ -314,25 +351,27 @@ export function AssetForm({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="currentPrice"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Güncel Fiyat ({currency})</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="any"
-                        placeholder="55.00"
-                        {...field}
-                        data-testid="input-asset-current-price"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {assetType !== "abd-hisse" && (
+                <FormField
+                  control={form.control}
+                  name="currentPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Güncel Fiyat ({currency})</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="55.00"
+                          {...field}
+                          data-testid="input-asset-current-price"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             <FormField

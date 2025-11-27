@@ -261,6 +261,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // US Stocks search
+  app.get('/api/stocks/search', async (req: any, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query || query.length < 1) {
+        return res.json([]);
+      }
+      const stocks = await storage.searchUSStocks(query);
+      res.json(stocks);
+    } catch (error) {
+      console.error("Error searching stocks:", error);
+      res.status(500).json({ message: "Failed to search stocks" });
+    }
+  });
+
+  // Seed US stocks (called on startup)
+  await storage.seedUSStocks();
+
   // Transactions
   app.get('/api/transactions', isAuthenticated, async (req: any, res) => {
     try {

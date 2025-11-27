@@ -14,7 +14,7 @@ import {
   type USStock,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, ilike } from "drizzle-orm";
+import { eq, desc, ilike, and } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -136,8 +136,10 @@ export class DatabaseStorage implements IStorage {
     const existing = await db
       .select()
       .from(performanceSnapshots)
-      .where(eq(performanceSnapshots.userId, userId))
-      .where(eq(performanceSnapshots.month, month))
+      .where(and(
+        eq(performanceSnapshots.userId, userId),
+        eq(performanceSnapshots.month, month)
+      ))
       .limit(1);
 
     if (existing.length > 0) {
@@ -164,6 +166,66 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return snapshot;
+  }
+
+  // US Stocks operations
+  async searchUSStocks(query: string): Promise<USStock[]> {
+    return await db
+      .select()
+      .from(usStocks)
+      .where(ilike(usStocks.symbol, `${query.toUpperCase()}%`))
+      .limit(20);
+  }
+
+  async seedUSStocks(): Promise<void> {
+    // Check if stocks already exist
+    const existing = await db.select().from(usStocks).limit(1);
+    if (existing.length > 0) return; // Already seeded
+
+    const stocks = [
+      { symbol: 'AAPL', name: 'Apple Inc' },
+      { symbol: 'MSFT', name: 'Microsoft Corporation' },
+      { symbol: 'GOOGL', name: 'Alphabet Inc (Google)' },
+      { symbol: 'AMZN', name: 'Amazon.com Inc' },
+      { symbol: 'NVDA', name: 'NVIDIA Corporation' },
+      { symbol: 'TSLA', name: 'Tesla Inc' },
+      { symbol: 'META', name: 'Meta Platforms Inc' },
+      { symbol: 'GOOG', name: 'Alphabet Inc (Google Class C)' },
+      { symbol: 'BRK.B', name: 'Berkshire Hathaway Inc' },
+      { symbol: 'JNJ', name: 'Johnson & Johnson' },
+      { symbol: 'V', name: 'Visa Inc' },
+      { symbol: 'WMT', name: 'Walmart Inc' },
+      { symbol: 'JPM', name: 'JPMorgan Chase & Co' },
+      { symbol: 'MA', name: 'Mastercard Incorporated' },
+      { symbol: 'XOM', name: 'Exxon Mobil Corporation' },
+      { symbol: 'PG', name: 'Procter & Gamble Co' },
+      { symbol: 'HD', name: 'The Home Depot Inc' },
+      { symbol: 'INTC', name: 'Intel Corporation' },
+      { symbol: 'AMD', name: 'Advanced Micro Devices Inc' },
+      { symbol: 'IBM', name: 'International Business Machines' },
+      { symbol: 'CISCO', name: 'Cisco Systems Inc' },
+      { symbol: 'ORCL', name: 'Oracle Corporation' },
+      { symbol: 'NFLX', name: 'Netflix Inc' },
+      { symbol: 'DIS', name: 'The Walt Disney Company' },
+      { symbol: 'PYPL', name: 'PayPal Holdings Inc' },
+      { symbol: 'UBER', name: 'Uber Technologies Inc' },
+      { symbol: 'SPOT', name: 'Spotify Technology SA' },
+      { symbol: 'AIRB', name: 'Airbnb Inc' },
+      { symbol: 'BA', name: 'The Boeing Company' },
+      { symbol: 'CAT', name: 'Caterpillar Inc' },
+      { symbol: 'MMM', name: '3M Company' },
+      { symbol: 'MCD', name: "McDonald's Corporation" },
+      { symbol: 'KO', name: 'The Coca-Cola Company' },
+      { symbol: 'PEP', name: 'PepsiCo Inc' },
+      { symbol: 'LMT', name: 'Lockheed Martin Corporation' },
+      { symbol: 'RTX', name: 'RTX Corporation (Raytheon)' },
+      { symbol: 'GE', name: 'General Electric Company' },
+      { symbol: 'MRK', name: 'Merck & Co Inc' },
+      { symbol: 'LLY', name: 'Eli Lilly and Company' },
+      { symbol: 'CVX', name: 'Chevron Corporation' },
+    ];
+
+    await db.insert(usStocks).values(stocks);
   }
 }
 
