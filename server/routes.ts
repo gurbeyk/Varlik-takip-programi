@@ -313,17 +313,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           console.log("CoinGecko fetch failed:", e);
         }
       } else if (type === 'abd-hisse' || type === 'etf') {
-        // Try Yahoo Finance API for US stocks and ETFs
+        // Try multiple APIs for US stocks and ETFs
+        // First try Yahoo Finance
         try {
           const response = await fetch(
-            `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`
+            `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`,
+            { headers: { 'User-Agent': 'Mozilla/5.0' } }
           );
-          const data = await response.json();
-          if (data.quoteResponse?.result?.[0]?.regularMarketPrice) {
-            price = data.quoteResponse.result[0].regularMarketPrice;
+          if (response.ok) {
+            const data = await response.json();
+            if (data.quoteResponse?.result?.[0]?.regularMarketPrice) {
+              price = data.quoteResponse.result[0].regularMarketPrice;
+            }
           }
         } catch (e) {
           console.log("Yahoo Finance fetch failed:", e);
+        }
+
+        // Fallback: Try Alpha Vantage (requires API key, so skip for now)
+        // Just return that we couldn't fetch
+        if (!price) {
+          console.log(`Could not fetch price for ${symbol} - Yahoo Finance API not responding`);
         }
       } else if (type === 'hisse') {
         // For Turkish stocks, we can't easily fetch from free APIs

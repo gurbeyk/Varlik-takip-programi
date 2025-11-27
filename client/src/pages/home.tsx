@@ -29,25 +29,26 @@ export default function Home() {
 
   const isLoading = assetsLoading || summaryLoading || snapshotsLoading;
 
-  // Auto-fetch current prices from public APIs
-  useEffect(() => {
+  // Manual price refresh function - pass to portfolio table
+  const refreshPrices = async () => {
     if (assets && assets.length > 0) {
-      assets.forEach((asset) => {
-        if (asset.symbol && (asset.type === 'abd-hisse' || asset.type === 'etf' || asset.type === 'kripto')) {
+      const priceUpdates = assets
+        .filter(a => a.symbol && (a.type === 'abd-hisse' || a.type === 'etf' || a.type === 'kripto'))
+        .map(asset =>
           fetch(`/api/assets/${asset.id}/price`, { method: 'POST' })
             .then(res => res.json())
-            .then((data) => {
-              if (data.price) {
-                // Invalidate and refetch assets to get updated prices
-                queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
-                queryClient.invalidateQueries({ queryKey: ['/api/portfolio/summary'] });
-              }
+            .catch(err => {
+              console.log("Failed to fetch price for", asset.symbol, err);
+              return null;
             })
-            .catch(err => console.log("Failed to fetch price for", asset.symbol, err));
-        }
-      });
+        );
+      
+      await Promise.all(priceUpdates);
+      // Refetch assets to get updated prices
+      queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolio/summary'] });
     }
-  }, [assets]);
+  };
 
   return (
     <div className="space-y-6">
@@ -73,7 +74,7 @@ export default function Home() {
         <PerformanceChart snapshots={snapshots} isLoading={snapshotsLoading} />
       </div>
 
-      <PortfolioTable assets={assets} isLoading={assetsLoading} />
+      <PortfolioTable assets={assets} isLoading={assetsLoading} onRefreshPrices={refreshPrices} />
     </div>
   );
 }
