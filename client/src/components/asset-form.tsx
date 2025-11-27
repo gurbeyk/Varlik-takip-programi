@@ -153,7 +153,16 @@ export function AssetForm({
     if (assetType === "abd-hisse" && !values.currentPrice) {
       values.currentPrice = values.purchasePrice;
     }
-    onSubmit({ ...values, currency });
+    
+    // Convert purchaseDate string to Date if provided
+    const submitData: any = { ...values, currency };
+    if (values.purchaseDate) {
+      submitData.purchaseDate = new Date(values.purchaseDate);
+    } else {
+      delete submitData.purchaseDate;
+    }
+    
+    onSubmit(submitData);
     form.reset();
     setCurrency("TRY");
   };
