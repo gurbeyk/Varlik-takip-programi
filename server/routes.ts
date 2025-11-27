@@ -1,16 +1,215 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
+import { insertAssetSchema } from "@shared/schema";
+import { z } from "zod";
 
-export async function registerRoutes(
-  httpServer: Server,
-  app: Express
-): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
+export async function registerRoutes(app: Express): Promise<Server> {
+  // Auth middleware
+  await setupAuth(app);
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
 
+  // Portfolio summary
+  app.get('/api/portfolio/summary', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const assets = await storage.getAssets(userId);
+      const snapshots = await storage.getPerformanceSnapshots(userId);
+
+      // Calculate totals
+      const totalAssets = assets.reduce((sum, asset) => {
+        return sum + Number(asset.quantity) * Number(asset.currentPrice);
+      }, 0);
+
+      const totalDebt = 0; // For now, we don't track debt
+
+      const netWorth = totalAssets - totalDebt;
+
+      // Calculate monthly change
+      let monthlyChange = 0;
+      if (snapshots.length >= 2) {
+        const lastMonth = snapshots[snapshots.length - 1];
+        const prevMonth = snapshots[snapshots.length - 2];
+        const lastValue = Number(lastMonth.netWorth);
+        const prevValue = Number(prevMonth.netWorth);
+        if (prevValue > 0) {
+          monthlyChange = ((lastValue - prevValue) / prevValue) * 100;
+        }
+      }
+
+      // Update current month snapshot
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      await storage.createOrUpdatePerformanceSnapshot(userId, currentMonth, totalAssets, totalDebt, netWorth);
+
+      res.json({
+        totalAssets,
+        totalDebt,
+        netWorth,
+        monthlyChange,
+      });
+    } catch (error) {
+      console.error("Error fetching portfolio summary:", error);
+      res.status(500).json({ message: "Failed to fetch portfolio summary" });
+    }
+  });
+
+  // Performance snapshots
+  app.get('/api/portfolio/performance', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const snapshots = await storage.getPerformanceSnapshots(userId);
+      res.json(snapshots);
+    } catch (error) {
+      console.error("Error fetching performance data:", error);
+      res.status(500).json({ message: "Failed to fetch performance data" });
+    }
+  });
+
+  // Assets CRUD
+  app.get('/api/assets', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const assets = await storage.getAssets(userId);
+      res.json(assets);
+    } catch (error) {
+      console.error("Error fetching assets:", error);
+      res.status(500).json({ message: "Failed to fetch assets" });
+    }
+  });
+
+  app.get('/api/assets/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const asset = await storage.getAsset(req.params.id);
+      if (!asset) {
+        return res.status(404).json({ message: "Asset not found" });
+      }
+      // Verify ownership
+      if (asset.userId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      res.json(asset);
+    } catch (error) {
+      console.error("Error fetching asset:", error);
+      res.status(500).json({ message: "Failed to fetch asset" });
+    }
+  });
+
+  app.post('/api/assets', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body
+      const validatedData = insertAssetSchema.parse(req.body);
+      
+      const asset = await storage.createAsset(userId, validatedData);
+
+      // Create a transaction record
+      await storage.createTransaction(userId, {
+        assetId: asset.id,
+        type: 'buy',
+        assetName: asset.name,
+        assetType: asset.type,
+        quantity: asset.quantity,
+        price: asset.purchasePrice,
+        totalAmount: (Number(asset.quantity) * Number(asset.purchasePrice)).toString(),
+        currency: asset.currency,
+      });
+
+      res.status(201).json(asset);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error creating asset:", error);
+      res.status(500).json({ message: "Failed to create asset" });
+    }
+  });
+
+  app.patch('/api/assets/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Verify ownership
+      const existingAsset = await storage.getAsset(req.params.id);
+      if (!existingAsset) {
+        return res.status(404).json({ message: "Asset not found" });
+      }
+      if (existingAsset.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Validate request body
+      const validatedData = insertAssetSchema.partial().parse(req.body);
+      
+      const asset = await storage.updateAsset(req.params.id, validatedData);
+      res.json(asset);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error("Error updating asset:", error);
+      res.status(500).json({ message: "Failed to update asset" });
+    }
+  });
+
+  app.delete('/api/assets/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Verify ownership
+      const existingAsset = await storage.getAsset(req.params.id);
+      if (!existingAsset) {
+        return res.status(404).json({ message: "Asset not found" });
+      }
+      if (existingAsset.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Create a sell transaction before deleting
+      await storage.createTransaction(userId, {
+        assetId: null,
+        type: 'sell',
+        assetName: existingAsset.name,
+        assetType: existingAsset.type,
+        quantity: existingAsset.quantity,
+        price: existingAsset.currentPrice,
+        totalAmount: (Number(existingAsset.quantity) * Number(existingAsset.currentPrice)).toString(),
+        currency: existingAsset.currency,
+      });
+
+      await storage.deleteAsset(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting asset:", error);
+      res.status(500).json({ message: "Failed to delete asset" });
+    }
+  });
+
+  // Transactions
+  app.get('/api/transactions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const transactions = await storage.getTransactions(userId);
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
+  const httpServer = createServer(app);
   return httpServer;
 }
