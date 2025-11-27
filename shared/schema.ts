@@ -76,6 +76,16 @@ export const insertAssetSchema = createInsertSchema(assets).omit({
   userId: true,
   createdAt: true,
   updatedAt: true,
+}).refine((data) => {
+  // Handle purchaseDate as either string or Date
+  if (typeof data.purchaseDate === 'string' && data.purchaseDate) {
+    try {
+      data.purchaseDate = new Date(data.purchaseDate);
+    } catch {
+      return false;
+    }
+  }
+  return true;
 });
 
 export type InsertAsset = z.infer<typeof insertAssetSchema>;

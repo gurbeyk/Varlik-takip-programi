@@ -154,13 +154,8 @@ export function AssetForm({
       values.currentPrice = values.purchasePrice;
     }
     
-    // Convert purchaseDate string to Date if provided
     const submitData: any = { ...values, currency };
-    if (values.purchaseDate) {
-      submitData.purchaseDate = new Date(values.purchaseDate);
-    } else {
-      delete submitData.purchaseDate;
-    }
+    // Keep purchaseDate as is - can be empty string or ISO date string
     
     onSubmit(submitData);
     form.reset();
