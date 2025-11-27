@@ -34,19 +34,13 @@ export default function Home() {
     if (assets && assets.length > 0) {
       assets.forEach((asset) => {
         if (asset.symbol && (asset.type === 'abd-hisse' || asset.type === 'etf' || asset.type === 'kripto')) {
-          fetch(`/api/price/current?symbol=${encodeURIComponent(asset.symbol)}&type=${asset.type}`)
+          fetch(`/api/assets/${asset.id}/price`, { method: 'POST' })
             .then(res => res.json())
             .then((data) => {
               if (data.price) {
-                // Update asset currentPrice in local cache
-                queryClient.setQueryData<Asset[]>(['/api/assets'], (oldData) => {
-                  if (!oldData) return oldData;
-                  return oldData.map(a => 
-                    a.id === asset.id 
-                      ? { ...a, currentPrice: data.price }
-                      : a
-                  );
-                });
+                // Invalidate and refetch assets to get updated prices
+                queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
+                queryClient.invalidateQueries({ queryKey: ['/api/portfolio/summary'] });
               }
             })
             .catch(err => console.log("Failed to fetch price for", asset.symbol, err));

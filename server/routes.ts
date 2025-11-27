@@ -276,17 +276,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Fetch current price from public APIs
-  app.get('/api/price/current', async (req: any, res) => {
+  // Fetch and update current price from public APIs
+  app.post('/api/assets/:id/price', isAuthenticated, async (req: any, res) => {
     try {
-      const { symbol, type } = req.query;
+      const userId = req.user.claims.sub;
+      const assetId = req.params.id;
+
+      // Verify ownership
+      const asset = await storage.getAsset(assetId);
+      if (!asset) {
+        return res.status(404).json({ message: "Asset not found" });
+      }
+      if (asset.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const { symbol, type } = asset;
       if (!symbol) {
-        return res.status(400).json({ message: "Symbol required" });
+        return res.status(400).json({ message: "Asset has no symbol" });
       }
 
       let price = null;
 
-      if (type === 'kripto' || type === 'abd-hisse' && symbol.toLowerCase().includes('btc|eth')) {
+      if (type === 'kripto') {
         // Try CoinGecko for crypto
         try {
           const response = await fetch(
@@ -298,26 +310,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             price = data[id].usd;
           }
         } catch (e) {
-          console.log("CoinGecko fetch failed");
+          console.log("CoinGecko fetch failed:", e);
         }
-      }
-
-      if (!price && (type === 'abd-hisse' || type === 'etf')) {
+      } else if (type === 'abd-hisse' || type === 'etf') {
         // Try Yahoo Finance API for US stocks and ETFs
         try {
           const response = await fetch(
-            `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}`
+            `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`
           );
           const data = await response.json();
           if (data.quoteResponse?.result?.[0]?.regularMarketPrice) {
             price = data.quoteResponse.result[0].regularMarketPrice;
           }
         } catch (e) {
-          console.log("Yahoo Finance fetch failed");
+          console.log("Yahoo Finance fetch failed:", e);
         }
+      } else if (type === 'hisse') {
+        // For Turkish stocks, we can't easily fetch from free APIs
+        // User can update manually
+        return res.status(400).json({ message: "Turkish stocks need manual update" });
       }
 
       if (price) {
+        // Update asset currentPrice in database
+        await storage.updateAsset(assetId, { currentPrice: price.toString() });
         return res.json({ price: Number(price).toFixed(2) });
       }
 
