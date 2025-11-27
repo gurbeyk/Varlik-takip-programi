@@ -1,6 +1,9 @@
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, Wallet, CreditCard, PiggyBank, Percent } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { queryClient } from "@/lib/queryClient";
+import type { Asset } from "@shared/schema";
 
 interface SummaryCardsProps {
   totalAssets: number;

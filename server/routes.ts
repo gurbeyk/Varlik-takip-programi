@@ -276,6 +276,58 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Fetch current price from public APIs
+  app.get('/api/price/current', async (req: any, res) => {
+    try {
+      const { symbol, type } = req.query;
+      if (!symbol) {
+        return res.status(400).json({ message: "Symbol required" });
+      }
+
+      let price = null;
+
+      if (type === 'kripto' || type === 'abd-hisse' && symbol.toLowerCase().includes('btc|eth')) {
+        // Try CoinGecko for crypto
+        try {
+          const response = await fetch(
+            `https://api.coingecko.com/api/v3/simple/price?ids=${symbol.toLowerCase()}&vs_currencies=usd`
+          );
+          const data = await response.json();
+          const id = Object.keys(data)[0];
+          if (data[id]?.usd) {
+            price = data[id].usd;
+          }
+        } catch (e) {
+          console.log("CoinGecko fetch failed");
+        }
+      }
+
+      if (!price && (type === 'abd-hisse' || type === 'etf')) {
+        // Try Yahoo Finance API for US stocks and ETFs
+        try {
+          const response = await fetch(
+            `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}`
+          );
+          const data = await response.json();
+          if (data.quoteResponse?.result?.[0]?.regularMarketPrice) {
+            price = data.quoteResponse.result[0].regularMarketPrice;
+          }
+        } catch (e) {
+          console.log("Yahoo Finance fetch failed");
+        }
+      }
+
+      if (price) {
+        return res.json({ price: Number(price).toFixed(2) });
+      }
+
+      res.status(404).json({ message: "Could not fetch price" });
+    } catch (error) {
+      console.error("Error fetching price:", error);
+      res.status(500).json({ message: "Failed to fetch price" });
+    }
+  });
+
   // Seed US stocks (called on startup)
   await storage.seedUSStocks();
 

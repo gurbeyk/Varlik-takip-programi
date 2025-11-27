@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SummaryCards } from "@/components/summary-cards";
 import { AssetDistributionChart } from "@/components/asset-distribution-chart";
 import { PerformanceChart } from "@/components/performance-chart";
 import { PortfolioTable } from "@/components/portfolio-table";
+import { queryClient } from "@/lib/queryClient";
 import type { Asset, PerformanceSnapshot } from "@shared/schema";
 
 interface PortfolioSummary {
@@ -26,6 +28,32 @@ export default function Home() {
   });
 
   const isLoading = assetsLoading || summaryLoading || snapshotsLoading;
+
+  // Auto-fetch current prices from public APIs
+  useEffect(() => {
+    if (assets && assets.length > 0) {
+      assets.forEach((asset) => {
+        if (asset.symbol && (asset.type === 'abd-hisse' || asset.type === 'etf' || asset.type === 'kripto')) {
+          fetch(`/api/price/current?symbol=${encodeURIComponent(asset.symbol)}&type=${asset.type}`)
+            .then(res => res.json())
+            .then((data) => {
+              if (data.price) {
+                // Update asset currentPrice in local cache
+                queryClient.setQueryData<Asset[]>(['/api/assets'], (oldData) => {
+                  if (!oldData) return oldData;
+                  return oldData.map(a => 
+                    a.id === asset.id 
+                      ? { ...a, currentPrice: data.price }
+                      : a
+                  );
+                });
+              }
+            })
+            .catch(err => console.log("Failed to fetch price for", asset.symbol, err));
+        }
+      });
+    }
+  }, [assets]);
 
   return (
     <div className="space-y-6">
