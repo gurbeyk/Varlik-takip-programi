@@ -77,6 +77,7 @@ export const transactions = pgTable("transactions", {
   quantity: decimal("quantity", { precision: 18, scale: 8 }).notNull(),
   price: decimal("price", { precision: 18, scale: 2 }).notNull(),
   totalAmount: decimal("total_amount", { precision: 18, scale: 2 }).notNull(),
+  realizedPnL: decimal("realized_pnl", { precision: 18, scale: 2 }).default('0'), // Realized P&L for sell transactions
   currency: varchar("currency", { length: 10 }).default('TRY'),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),

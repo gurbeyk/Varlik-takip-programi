@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PortfolioTable } from "@/components/portfolio-table";
 import { AssetForm } from "@/components/asset-form";
+import { SellAssetDialog } from "@/components/sell-asset-dialog";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -14,8 +15,10 @@ import type { Asset } from "@shared/schema";
 export default function Assets() {
   const { toast } = useToast();
   const [formOpen, setFormOpen] = useState(false);
+  const [sellOpen, setSellOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [sellingAsset, setSellingAsset] = useState<Asset | null>(null);
   const [deletingAsset, setDeletingAsset] = useState<Asset | null>(null);
 
   const { data: assets = [], isLoading } = useQuery<Asset[]>({
@@ -29,6 +32,7 @@ export default function Assets() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
       setFormOpen(false);
       toast({
         title: "Başarılı",
@@ -89,6 +93,41 @@ export default function Assets() {
     },
   });
 
+  const sellMutation = useMutation({
+    mutationFn: async ({ id, sellPrice }: { id: string; sellPrice: number }) => {
+      return await apiRequest("POST", `/api/assets/${id}/sell`, { sellPrice });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      setSellOpen(false);
+      setSellingAsset(null);
+      toast({
+        title: "Başarılı",
+        description: "Varlık başarıyla satıldı.",
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Yetkilendirme Hatası",
+          description: "Oturumunuz sonlanmış. Yeniden giriş yapılıyor...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Hata",
+        description: "Varlık satılırken bir hata oluştu.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       return await apiRequest("DELETE", `/api/assets/${id}`);
@@ -96,6 +135,7 @@ export default function Assets() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
       setDeleteOpen(false);
       setDeletingAsset(null);
       toast({
@@ -133,6 +173,11 @@ export default function Assets() {
     setFormOpen(true);
   };
 
+  const handleSell = (asset: Asset) => {
+    setSellingAsset(asset);
+    setSellOpen(true);
+  };
+
   const handleDelete = (asset: Asset) => {
     setDeletingAsset(asset);
     setDeleteOpen(true);
@@ -143,6 +188,12 @@ export default function Assets() {
       updateMutation.mutate({ id: editingAsset.id, data: values });
     } else {
       createMutation.mutate(values);
+    }
+  };
+
+  const handleConfirmSell = (values: { sellPrice: number }) => {
+    if (sellingAsset) {
+      sellMutation.mutate({ id: sellingAsset.id, sellPrice: values.sellPrice });
     }
   };
 
@@ -200,6 +251,7 @@ export default function Assets() {
         assets={assets}
         isLoading={isLoading}
         onEdit={handleEdit}
+        onSell={handleSell}
         onDelete={handleDelete}
       />
 
@@ -210,6 +262,14 @@ export default function Assets() {
         defaultValues={editingAsset || undefined}
         isLoading={createMutation.isPending || updateMutation.isPending}
         mode={editingAsset ? "edit" : "create"}
+      />
+
+      <SellAssetDialog
+        open={sellOpen}
+        onOpenChange={setSellOpen}
+        onSubmit={handleConfirmSell}
+        asset={sellingAsset}
+        isLoading={sellMutation.isPending}
       />
 
       <DeleteConfirmDialog

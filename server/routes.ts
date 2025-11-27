@@ -126,6 +126,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         price: asset.purchasePrice,
         totalAmount: (Number(asset.quantity) * Number(asset.purchasePrice)).toString(),
         currency: asset.currency,
+        realizedPnL: '0',
       });
 
       res.status(201).json(asset);
@@ -165,6 +166,60 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Sell asset
+  app.post('/api/assets/:id/sell', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sellPrice } = req.body;
+
+      if (!sellPrice || Number(sellPrice) <= 0) {
+        return res.status(400).json({ message: "Invalid sell price" });
+      }
+
+      // Verify ownership
+      const existingAsset = await storage.getAsset(req.params.id);
+      if (!existingAsset) {
+        return res.status(404).json({ message: "Asset not found" });
+      }
+      if (existingAsset.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const quantity = Number(existingAsset.quantity);
+      const purchasePrice = Number(existingAsset.purchasePrice);
+      const salePrice = Number(sellPrice);
+      
+      // Calculate realized P&L
+      const totalCost = quantity * purchasePrice;
+      const totalRevenue = quantity * salePrice;
+      const realizedPnL = totalRevenue - totalCost;
+
+      // Create a sell transaction
+      await storage.createTransaction(userId, {
+        assetId: req.params.id,
+        type: 'sell',
+        assetName: existingAsset.name,
+        assetType: existingAsset.type,
+        quantity: existingAsset.quantity,
+        price: salePrice.toString(),
+        totalAmount: totalRevenue.toString(),
+        currency: existingAsset.currency,
+        realizedPnL: realizedPnL.toString(),
+      });
+
+      // Delete the asset
+      await storage.deleteAsset(req.params.id);
+
+      res.status(200).json({ 
+        message: "Asset sold successfully",
+        realizedPnL 
+      });
+    } catch (error) {
+      console.error("Error selling asset:", error);
+      res.status(500).json({ message: "Failed to sell asset" });
+    }
+  });
+
   app.delete('/api/assets/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -178,16 +233,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      // Create a sell transaction before deleting
+      // Create a sell transaction before deleting (at current price, so no P&L)
+      const quantity = Number(existingAsset.quantity);
+      const currentPrice = Number(existingAsset.currentPrice);
+      const purchasePrice = Number(existingAsset.purchasePrice);
+      const totalRevenue = quantity * currentPrice;
+      const totalCost = quantity * purchasePrice;
+      const realizedPnL = totalRevenue - totalCost;
+
       await storage.createTransaction(userId, {
         assetId: null,
         type: 'sell',
         assetName: existingAsset.name,
         assetType: existingAsset.type,
         quantity: existingAsset.quantity,
-        price: existingAsset.currentPrice,
-        totalAmount: (Number(existingAsset.quantity) * Number(existingAsset.currentPrice)).toString(),
+        price: currentPrice.toString(),
+        totalAmount: totalRevenue.toString(),
         currency: existingAsset.currency,
+        realizedPnL: realizedPnL.toString(),
       });
 
       await storage.deleteAsset(req.params.id);

@@ -10,13 +10,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Edit2, Trash2, TrendingUp, TrendingDown } from "lucide-react";
+import { Edit2, Trash2, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 import type { Asset } from "@shared/schema";
 
 interface PortfolioTableProps {
   assets: Asset[];
   isLoading?: boolean;
   onEdit?: (asset: Asset) => void;
+  onSell?: (asset: Asset) => void;
   onDelete?: (asset: Asset) => void;
 }
 
@@ -53,7 +54,7 @@ function formatQuantity(value: number, type: string): string {
   return value.toFixed(2);
 }
 
-export function PortfolioTable({ assets, isLoading, onEdit, onDelete }: PortfolioTableProps) {
+export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete }: PortfolioTableProps) {
   if (isLoading) {
     return (
       <Card data-testid="table-portfolio">
@@ -114,7 +115,7 @@ export function PortfolioTable({ assets, isLoading, onEdit, onDelete }: Portfoli
                 <TableHead className="text-right">Güncel Fiyat</TableHead>
                 <TableHead className="text-right">Değer</TableHead>
                 <TableHead className="text-right">Performans</TableHead>
-                {(onEdit || onDelete) && <TableHead className="text-right">İşlemler</TableHead>}
+                {(onEdit || onSell || onDelete) && <TableHead className="text-right">İşlemler</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -173,7 +174,7 @@ export function PortfolioTable({ assets, isLoading, onEdit, onDelete }: Portfoli
                         {isPositive ? '+' : ''}{performance.toFixed(2)}%
                       </div>
                     </TableCell>
-                    {(onEdit || onDelete) && (
+                    {(onEdit || onSell || onDelete) && (
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           {onEdit && (
@@ -184,6 +185,16 @@ export function PortfolioTable({ assets, isLoading, onEdit, onDelete }: Portfoli
                               data-testid={`button-edit-${asset.id}`}
                             >
                               <Edit2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {onSell && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onSell(asset)}
+                              data-testid={`button-sell-${asset.id}`}
+                            >
+                              <DollarSign className="w-4 h-4" />
                             </Button>
                           )}
                           {onDelete && (
