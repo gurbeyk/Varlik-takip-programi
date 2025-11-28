@@ -51,20 +51,21 @@ async function seedUSStocks() {
       c.toLowerCase().includes('symbol') ||
       c.toLowerCase() === 'sembol' ||
       c.toLowerCase() === 'kod'
-  );
+  ) || 'Sembol';
+  
+  // Name column is typically in column C (index 2) - look for it
   let nameCol = columns.find(
     c =>
       c.toLowerCase().includes('name') ||
       c.toLowerCase() === 'ad' ||
-      c.toLowerCase().includes('adi')
-  );
-
-  if (!symbolCol) symbolCol = columns[0];
-  if (!nameCol) nameCol = columns[1];
+      c.toLowerCase().includes('adi') ||
+      c.toLowerCase().includes('açıklama')
+  ) || columns[2]; // Default to 3rd column (C)
 
   console.log(
     `Using columns: symbol="${symbolCol}", name="${nameCol}"`
   );
+  console.log('Available columns:', columns);
   console.log('Sample row:', data[0]);
 
   // Extract and validate data
@@ -72,11 +73,6 @@ async function seedUSStocks() {
     .map(row => {
       let symbol = String(row[symbolCol] || '').trim().toUpperCase();
       let name = String(row[nameCol] || '').trim();
-      
-      // Handle Turkish Excel column names
-      if (!symbol && row['Sembol']) symbol = String(row['Sembol']).trim().toUpperCase();
-      if (!name && row['Açıklama']) name = String(row['Açıklama']).trim();
-      if (!name && row['Adi']) name = String(row['Adi']).trim();
       
       return { symbol, name };
     })
