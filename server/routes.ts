@@ -368,38 +368,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           console.log(`Could not fetch price for ${symbol}`);
         }
       } else if (type === 'hisse') {
-        // Fetch Turkish stock price from NosyAPI
-        const apiKey = process.env.NOSYAPI_KEY;
-        if (apiKey) {
-          try {
-            const response = await fetch(
-              `https://www.nosyapi.com/api/bist-hisse-senetleri-fiyatlari`,
-              {
-                headers: {
-                  'Authorization': `Bearer ${apiKey}`,
-                  'Content-Type': 'application/json',
-                }
-              }
-            );
-            if (response.ok) {
-              const data = await response.json();
-              // Find the stock by symbol in the response
-              if (Array.isArray(data)) {
-                const stock = data.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase());
-                if (stock && stock.price) {
-                  price = parseFloat(stock.price);
-                }
-              } else if (data.data && Array.isArray(data.data)) {
-                const stock = data.data.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase());
-                if (stock && stock.price) {
-                  price = parseFloat(stock.price);
-                }
-              }
-            }
-          } catch (e) {
-            console.log("NosyAPI fetch failed:", e);
-          }
-        }
+        // BIST stocks require manual update
+        // NosyAPI integration is pending proper endpoint configuration
+        return res.status(400).json({ message: "BİST hisse senetleri manuel olarak güncellenir" });
       }
 
       if (price) {
