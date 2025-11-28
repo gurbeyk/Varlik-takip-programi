@@ -150,8 +150,8 @@ export function AssetForm({
   };
 
   const handleSubmit = (values: AssetFormValues) => {
-    // For abd-hisse, ensure currentPrice is set
-    if (assetType === "abd-hisse" && !values.currentPrice) {
+    // For abd-hisse and hisse, ensure currentPrice is set
+    if ((assetType === "abd-hisse" || assetType === "hisse") && !values.currentPrice) {
       values.currentPrice = values.purchasePrice;
     }
     
