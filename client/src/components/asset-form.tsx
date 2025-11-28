@@ -118,14 +118,15 @@ export function AssetForm({
 
   const assetType = form.watch("type");
 
-  // Search US stocks when typing
+  // Search stocks (US or BIST) when typing
   const { data: stocks = [] } = useQuery<USStock[]>({
-    queryKey: ["/api/stocks/search", symbolSearch],
+    queryKey: ["/api/stocks/search", symbolSearch, assetType],
     queryFn: async () => {
-      const response = await fetch(`/api/stocks/search?q=${encodeURIComponent(symbolSearch)}`);
+      const endpoint = assetType === "abd-hisse" ? "/api/stocks/search" : "/api/stocks/bist-search";
+      const response = await fetch(`${endpoint}?q=${encodeURIComponent(symbolSearch)}`);
       return response.json();
     },
-    enabled: assetType === "abd-hisse" && symbolSearch.length > 0,
+    enabled: (assetType === "abd-hisse" || assetType === "hisse") && symbolSearch.length > 0,
     staleTime: Infinity,
   });
 
@@ -209,9 +210,9 @@ export function AssetForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Sembol {assetType === "abd-hisse" ? "" : "(Opsiyonel)"}
+                    Sembol {assetType === "abd-hisse" || assetType === "hisse" ? "" : "(Opsiyonel)"}
                   </FormLabel>
-                  {assetType === "abd-hisse" ? (
+                  {assetType === "abd-hisse" || assetType === "hisse" ? (
                     <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
                       <PopoverTrigger asChild>
                         <Button
@@ -268,7 +269,7 @@ export function AssetForm({
                   ) : (
                     <FormControl>
                       <Input
-                        placeholder="Örn: GARAN"
+                        placeholder={assetType === "etf" ? "Örn: ISENTETF" : assetType === "kripto" ? "Örn: BTC" : "Sembol"}
                         {...field}
                         data-testid="input-asset-symbol"
                       />
@@ -287,8 +288,8 @@ export function AssetForm({
                   <FormLabel>Varlık Adı</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder={assetType === "abd-hisse" ? "Otomatik doldurulacak" : "Örn: Garanti Bankası"}
-                      readOnly={assetType === "abd-hisse"}
+                      placeholder={assetType === "abd-hisse" || assetType === "hisse" ? "Otomatik doldurulacak" : "Örn: Garanti Bankası"}
+                      readOnly={assetType === "abd-hisse" || assetType === "hisse"}
                       {...field}
                       data-testid="input-asset-name"
                     />
@@ -338,7 +339,7 @@ export function AssetForm({
               />
             </div>
 
-            <div className={assetType === "abd-hisse" ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
+            <div className={assetType === "abd-hisse" || assetType === "hisse" ? "grid grid-cols-1 gap-4" : "grid grid-cols-2 gap-4"}>
               <FormField
                 control={form.control}
                 name="purchasePrice"
@@ -359,7 +360,7 @@ export function AssetForm({
                 )}
               />
 
-              {assetType !== "abd-hisse" && (
+              {assetType !== "abd-hisse" && assetType !== "hisse" && (
                 <FormField
                   control={form.control}
                   name="currentPrice"

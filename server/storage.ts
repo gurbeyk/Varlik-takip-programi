@@ -182,6 +182,14 @@ export class DatabaseStorage implements IStorage {
       .limit(20);
   }
 
+  async searchBISTStocks(query: string): Promise<BISTStock[]> {
+    return await db
+      .select()
+      .from(bistStocks)
+      .where(ilike(bistStocks.symbol, `${query.toUpperCase()}%`))
+      .limit(20);
+  }
+
   async seedUSStocks(): Promise<void> {
     // Check if stocks already exist
     const existing = await db.select().from(usStocks).limit(1);
