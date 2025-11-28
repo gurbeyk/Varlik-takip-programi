@@ -33,7 +33,7 @@ export default function Home() {
   const refreshPrices = async () => {
     if (assets && assets.length > 0) {
       const priceUpdates = assets
-        .filter(a => a.symbol && (a.type === 'abd-hisse' || a.type === 'etf' || a.type === 'kripto'))
+        .filter(a => a.symbol && (a.type === 'abd-hisse' || a.type === 'etf' || a.type === 'kripto' || a.type === 'hisse'))
         .map(asset =>
           fetch(`/api/assets/${asset.id}/price`, { method: 'POST' })
             .then(res => res.json())
