@@ -15,9 +15,12 @@ async function seedBISTStocks() {
 
   if (fs.existsSync(attachedAssetsDir)) {
     const files = fs.readdirSync(attachedAssetsDir);
-    const bistFile = files.find(f => f.toLowerCase().includes('bist') && f.endsWith('.xlsx'));
-    if (bistFile) {
-      excelFile = path.join(attachedAssetsDir, bistFile);
+    const bistFiles = files.filter(f => f.toLowerCase().includes('bist') && f.endsWith('.xlsx'));
+    // Get the most recent file (by timestamp in filename or modification time)
+    if (bistFiles.length > 0) {
+      const filePaths = bistFiles.map(f => path.join(attachedAssetsDir, f));
+      const sorted = filePaths.sort((a, b) => fs.statSync(b).mtime.getTime() - fs.statSync(a).mtime.getTime());
+      excelFile = sorted[0];
     }
   }
 
@@ -26,7 +29,7 @@ async function seedBISTStocks() {
     process.exit(1);
   }
 
-  console.log('Reading Excel file:', excelFile);
+  console.log('Reading Excel file:', path.basename(excelFile));
 
   const workbook = XLSX.readFile(excelFile);
   const sheetName = workbook.SheetNames[0];

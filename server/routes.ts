@@ -276,6 +276,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // BIST Stocks search
+  app.get('/api/stocks/bist-search', async (req: any, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query || query.length < 1) {
+        return res.json([]);
+      }
+      const stocks = await storage.searchBISTStocks(query);
+      res.json(stocks);
+    } catch (error) {
+      console.error("Error searching BIST stocks:", error);
+      res.status(500).json({ message: "Failed to search BIST stocks" });
+    }
+  });
+
   // Fetch and update current price from public APIs
   app.post('/api/assets/:id/price', isAuthenticated, async (req: any, res) => {
     try {
