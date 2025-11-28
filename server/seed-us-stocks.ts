@@ -69,10 +69,17 @@ async function seedUSStocks() {
 
   // Extract and validate data
   const stocks = data
-    .map(row => ({
-      symbol: String(row[symbolCol]).trim().toUpperCase(),
-      name: String(row[nameCol]).trim(),
-    }))
+    .map(row => {
+      let symbol = String(row[symbolCol] || '').trim().toUpperCase();
+      let name = String(row[nameCol] || '').trim();
+      
+      // Handle Turkish Excel column names
+      if (!symbol && row['Sembol']) symbol = String(row['Sembol']).trim().toUpperCase();
+      if (!name && row['Açıklama']) name = String(row['Açıklama']).trim();
+      if (!name && row['Adi']) name = String(row['Adi']).trim();
+      
+      return { symbol, name };
+    })
     .filter(s => s.symbol && s.name && s.symbol.length > 0);
 
   console.log(`Prepared ${stocks.length} valid stocks to insert`);
