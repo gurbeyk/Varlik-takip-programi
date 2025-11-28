@@ -50,9 +50,32 @@ export const usStocks = pgTable(
 
 export type USStock = typeof usStocks.$inferSelect;
 
+// BIST Stocks reference table
+export const bistStocks = pgTable(
+  "bist_stocks",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    symbol: varchar("symbol", { length: 20 }).notNull().unique(),
+    name: varchar("name", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [index("IDX_bist_stocks_symbol").on(table.symbol)]
+);
+
+export type BISTStock = typeof bistStocks.$inferSelect;
+
 // Asset types enum
 export const assetTypes = ['hisse', 'abd-hisse', 'etf', 'kripto', 'gayrimenkul'] as const;
 export type AssetType = typeof assetTypes[number];
+
+// Asset type labels
+export const assetTypeLabels: Record<AssetType, string> = {
+  'hisse': 'BİST Hisse Senedi',
+  'abd-hisse': 'ABD Hisse Senedi',
+  'etf': 'ETF',
+  'kripto': 'Kripto Para',
+  'gayrimenkul': 'Gayrimenkul',
+};
 
 // Assets table for portfolio tracking
 export const assets = pgTable("assets", {

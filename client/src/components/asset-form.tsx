@@ -75,7 +75,7 @@ interface AssetFormProps {
 }
 
 const ASSET_TYPES = [
-  { value: "hisse", label: "Hisse Senedi", currency: "TRY" },
+  { value: "hisse", label: "BİST Hisse Senedi", currency: "TRY" },
   { value: "abd-hisse", label: "ABD Hisse Senedi", currency: "USD" },
   { value: "etf", label: "ETF", currency: "TRY" },
   { value: "kripto", label: "Kripto Para", currency: "USD" },

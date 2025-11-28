@@ -4,6 +4,7 @@ import {
   transactions,
   performanceSnapshots,
   usStocks,
+  bistStocks,
   type User,
   type UpsertUser,
   type Asset,
@@ -12,6 +13,7 @@ import {
   type InsertTransaction,
   type PerformanceSnapshot,
   type USStock,
+  type BISTStock,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, ilike, and } from "drizzle-orm";
@@ -39,6 +41,9 @@ export interface IStorage {
   // US Stocks operations
   searchUSStocks(query: string): Promise<USStock[]>;
   seedUSStocks(): Promise<void>;
+
+  // BIST Stocks operations
+  searchBISTStocks(query: string): Promise<BISTStock[]>;
 }
 
 export class DatabaseStorage implements IStorage {
