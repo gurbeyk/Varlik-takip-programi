@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Edit2, Trash2, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { Edit2, Trash2, TrendingUp, TrendingDown, DollarSign, RefreshCw } from "lucide-react";
 import type { Asset } from "@shared/schema";
 
 interface PortfolioTableProps {
@@ -19,6 +20,7 @@ interface PortfolioTableProps {
   onEdit?: (asset: Asset) => void;
   onSell?: (asset: Asset) => void;
   onDelete?: (asset: Asset) => void;
+  onRefreshPrices?: () => Promise<void>;
 }
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
@@ -54,7 +56,19 @@ function formatQuantity(value: number, type: string): string {
   return value.toFixed(2);
 }
 
-export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete }: PortfolioTableProps) {
+export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, onRefreshPrices }: PortfolioTableProps) {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefreshPrices = async () => {
+    if (!onRefreshPrices) return;
+    setIsRefreshing(true);
+    try {
+      await onRefreshPrices();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card data-testid="table-portfolio">
@@ -100,8 +114,20 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete }: 
 
   return (
     <Card data-testid="table-portfolio">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
         <CardTitle className="text-lg">Portföy Detayı</CardTitle>
+        {onRefreshPrices && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleRefreshPrices}
+            disabled={isRefreshing}
+            data-testid="button-refresh-prices"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span className="ml-2">{isRefreshing ? 'Güncelleniyor...' : 'Fiyatları Güncelle'}</span>
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
