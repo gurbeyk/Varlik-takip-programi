@@ -368,9 +368,37 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           console.log(`Could not fetch price for ${symbol}`);
         }
       } else if (type === 'hisse') {
-        // BIST stocks require manual update
-        // NosyAPI integration is pending proper endpoint configuration
-        return res.status(400).json({ message: "BİST hisse senetleri manuel olarak güncellenir" });
+        // Fetch Turkish stock price from NosyAPI
+        const apiKey = process.env.NOSYAPI_KEY;
+        if (apiKey) {
+          try {
+            const response = await fetch(
+              `https://www.nosyapi.com/apiv2/service/economy/bist/exchange-rate?apiKey=${apiKey}&symbol=${symbol}`,
+              {
+                headers: {
+                  'Content-Type': 'application/json',
+                }
+              }
+            );
+            if (response.ok) {
+              const data = await response.json();
+              // Check various possible response structures
+              if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+                const stockData = data.data[0];
+                if (stockData.close || stockData.price || stockData.value) {
+                  price = parseFloat(stockData.close || stockData.price || stockData.value);
+                }
+              } else if (data.data && typeof data.data === 'object') {
+                const priceValue = data.data.close || data.data.price || data.data.value;
+                if (priceValue) {
+                  price = parseFloat(priceValue);
+                }
+              }
+            }
+          } catch (e) {
+            console.log("NosyAPI fetch failed:", e);
+          }
+        }
       }
 
       if (price) {
