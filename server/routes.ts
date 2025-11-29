@@ -394,57 +394,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           console.log("CoinGecko fetch failed:", e);
         }
       } else if (type === 'abd-hisse' || type === 'etf') {
-        // Convert symbol to uppercase for API calls
-        const upperSymbol = symbol.toUpperCase();
-        
-        // Try Yahoo Finance first (more reliable)
+        // US stocks and ETFs: use Python yfinance to get price
         try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 5000);
-          const response = await fetch(
-            `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(upperSymbol)}`,
-            { 
-              headers: { 'User-Agent': 'Mozilla/5.0' },
-              signal: controller.signal
-            }
-          );
-          clearTimeout(timeout);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.quoteResponse?.result?.[0]?.regularMarketPrice) {
-              price = data.quoteResponse.result[0].regularMarketPrice;
-            }
+          const scriptPath = path.join(__dirname, 'fetch-us-stock-price.py');
+          const result = execSync(`python3 ${scriptPath} "${symbol.toUpperCase()}"`, { encoding: 'utf-8', timeout: 10000 });
+          const data = JSON.parse(result);
+          if (data.price) {
+            price = data.price;
           }
         } catch (e) {
-          console.log("Yahoo Finance fetch failed for", upperSymbol, e);
-        }
-
-        // Fallback: Try Alpha Vantage API for US stocks and ETFs
-        if (!price) {
-          const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-          if (apiKey) {
-            try {
-              const controller = new AbortController();
-              const timeout = setTimeout(() => controller.abort(), 5000);
-              const response = await fetch(
-                `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(upperSymbol)}&apikey=${apiKey}`,
-                { signal: controller.signal }
-              );
-              clearTimeout(timeout);
-              if (response.ok) {
-                const data = await response.json();
-                if (data['Global Quote'] && data['Global Quote']['05. price']) {
-                  price = parseFloat(data['Global Quote']['05. price']);
-                }
-              }
-            } catch (e) {
-              console.log("Alpha Vantage fetch failed for", upperSymbol, e);
-            }
-          }
-        }
-
-        if (!price) {
-          console.log(`Could not fetch price for ${upperSymbol}`);
+          console.log(`US stock price fetch failed for ${symbol}:`, e);
         }
       } else if (type === 'hisse') {
         // BIST stocks: use Python yfinance to get price
