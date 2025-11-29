@@ -77,7 +77,7 @@ interface AssetFormProps {
 const ASSET_TYPES = [
   { value: "hisse", label: "BİST Hisse Senedi", currency: "TRY" },
   { value: "abd-hisse", label: "ABD Hisse Senedi", currency: "USD" },
-  { value: "etf", label: "ETF", currency: "TRY" },
+  { value: "etf", label: "Yurtdışı ETF", currency: "USD" },
   { value: "kripto", label: "Kripto Para", currency: "USD" },
   { value: "gayrimenkul", label: "Gayrimenkul", currency: "TRY" },
 ];
@@ -129,6 +129,21 @@ export function AssetForm({
     enabled: (assetType === "abd-hisse" || assetType === "hisse") && symbolSearch.length > 0,
     staleTime: Infinity,
   });
+
+  // Fetch ETF name when symbol is entered
+  const handleEtfSymbolChange = async (symbol: string) => {
+    if (assetType === "etf" && symbol.length > 0) {
+      try {
+        const response = await fetch(`/api/etf-name/${encodeURIComponent(symbol)}`);
+        const data = await response.json();
+        if (data.name && data.name !== "Bilinmeyen Kod") {
+          form.setValue("name", data.name);
+        }
+      } catch (error) {
+        console.error("Failed to fetch ETF name:", error);
+      }
+    }
+  };
 
   const handleAssetTypeChange = (value: string) => {
     form.setValue("type", value as any);
@@ -272,8 +287,14 @@ export function AssetForm({
                   ) : (
                     <FormControl>
                       <Input
-                        placeholder={assetType === "etf" ? "Örn: ISENTETF" : assetType === "kripto" ? "Örn: BTC" : "Sembol"}
+                        placeholder={assetType === "etf" ? "Örn: VOO" : assetType === "kripto" ? "Örn: BTC" : "Sembol"}
                         {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          if (assetType === "etf") {
+                            handleEtfSymbolChange(e.target.value);
+                          }
+                        }}
                         data-testid="input-asset-symbol"
                       />
                     </FormControl>
@@ -291,8 +312,8 @@ export function AssetForm({
                   <FormLabel>Varlık Adı</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder={assetType === "abd-hisse" || assetType === "hisse" ? "Otomatik doldurulacak" : "Örn: Garanti Bankası"}
-                      readOnly={assetType === "abd-hisse" || assetType === "hisse"}
+                      placeholder={assetType === "abd-hisse" || assetType === "hisse" || assetType === "etf" ? "Otomatik doldurulacak" : "Örn: Garanti Bankası"}
+                      readOnly={assetType === "abd-hisse" || assetType === "hisse" || assetType === "etf"}
                       {...field}
                       data-testid="input-asset-name"
                     />

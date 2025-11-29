@@ -84,6 +84,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ETF name lookup
+  app.get('/api/etf-name/:symbol', async (req: any, res) => {
+    try {
+      const symbol = req.params.symbol;
+      const scriptPath = path.join(__dirname, 'get-etf-name.py');
+      const result = execSync(`python3 ${scriptPath} ${symbol}`, { encoding: 'utf-8' });
+      const data = JSON.parse(result);
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching ETF name:", error);
+      res.json({ name: "Bilinmeyen Kod" });
+    }
+  });
+
   // Performance snapshots
   app.get('/api/portfolio/performance', isAuthenticated, async (req: any, res) => {
     try {
