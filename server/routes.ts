@@ -71,6 +71,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Currency rate
+  app.get('/api/currency-rate', async (req: any, res) => {
+    try {
+      const scriptPath = path.join(__dirname, 'fetch-currency-rate.py');
+      const result = execSync(`python3 ${scriptPath}`, { encoding: 'utf-8' });
+      const data = JSON.parse(result);
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching currency rate:", error);
+      res.status(500).json({ rate: 1 }); // Fallback to 1:1 if error
+    }
+  });
+
   // Performance snapshots
   app.get('/api/portfolio/performance', isAuthenticated, async (req: any, res) => {
     try {
