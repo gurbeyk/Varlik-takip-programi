@@ -87,9 +87,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Asset name lookup (for US stocks and ETFs)
   app.get('/api/asset-name/:symbol', async (req: any, res) => {
     try {
-      const symbol = req.params.symbol;
+      const symbol = req.params.symbol.toUpperCase().trim();
       const scriptPath = path.join(__dirname, 'get-asset-name.py');
-      const result = execSync(`python3 ${scriptPath} ${symbol}`, { encoding: 'utf-8' });
+      const result = execSync(`python3 ${scriptPath} "${symbol}"`, { encoding: 'utf-8', timeout: 15000 });
       const data = JSON.parse(result);
       res.json(data);
     } catch (error) {
@@ -101,9 +101,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Legacy ETF name lookup (redirect to asset-name)
   app.get('/api/etf-name/:symbol', async (req: any, res) => {
     try {
-      const symbol = req.params.symbol;
+      const symbol = req.params.symbol.toUpperCase().trim();
       const scriptPath = path.join(__dirname, 'get-asset-name.py');
-      const result = execSync(`python3 ${scriptPath} ${symbol}`, { encoding: 'utf-8' });
+      const result = execSync(`python3 ${scriptPath} "${symbol}"`, { encoding: 'utf-8', timeout: 15000 });
       const data = JSON.parse(result);
       res.json(data);
     } catch (error) {
