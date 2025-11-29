@@ -368,36 +368,38 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           console.log(`Could not fetch price for ${symbol}`);
         }
       } else if (type === 'hisse') {
-        // Fetch Turkish stock price from NosyAPI
-        const apiKey = process.env.NOSYAPI_KEY;
-        if (apiKey) {
-          try {
-            const response = await fetch(
-              `https://www.nosyapi.com/apiv2/service/economy/bist/exchange-rate?apiKey=${apiKey}&symbol=${symbol}`,
-              {
-                headers: {
-                  'Content-Type': 'application/json',
-                }
-              }
-            );
-            if (response.ok) {
-              const data = await response.json();
-              // Check various possible response structures
-              if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-                const stockData = data.data[0];
-                if (stockData.close || stockData.price || stockData.value) {
-                  price = parseFloat(stockData.close || stockData.price || stockData.value);
-                }
-              } else if (data.data && typeof data.data === 'object') {
-                const priceValue = data.data.close || data.data.price || data.data.value;
-                if (priceValue) {
-                  price = parseFloat(priceValue);
-                }
+        // Fetch Turkish stock price from Midas API (free, 15 min delay)
+        try {
+          const response = await fetch(
+            `https://www.getmidas.com/wp-json/midas-api/v1/midas_table_data`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
               }
             }
-          } catch (e) {
-            console.log("NosyAPI fetch failed:", e);
+          );
+          if (response.ok) {
+            const data = await response.json();
+            // Midas API returns array of stocks
+            let foundStock = null;
+            
+            if (Array.isArray(data)) {
+              foundStock = data.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase() || s.code?.toUpperCase() === symbol.toUpperCase());
+            } else if (data.data && Array.isArray(data.data)) {
+              foundStock = data.data.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase() || s.code?.toUpperCase() === symbol.toUpperCase());
+            } else if (data.stocks && Array.isArray(data.stocks)) {
+              foundStock = data.stocks.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase() || s.code?.toUpperCase() === symbol.toUpperCase());
+            }
+            
+            if (foundStock) {
+              const priceValue = foundStock.last || foundStock.close || foundStock.price || foundStock.value;
+              if (priceValue) {
+                price = parseFloat(priceValue);
+              }
+            }
           }
+        } catch (e) {
+          console.log("Midas API fetch failed:", e);
         }
       }
 
