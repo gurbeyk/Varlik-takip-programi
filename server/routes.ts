@@ -394,39 +394,49 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           console.log("CoinGecko fetch failed:", e);
         }
       } else if (type === 'abd-hisse' || type === 'etf') {
-        // Try Alpha Vantage API for US stocks and ETFs
-        const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-        if (apiKey) {
-          try {
-            const response = await fetch(
-              `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`
-            );
-            if (response.ok) {
-              const data = await response.json();
-              if (data['Global Quote'] && data['Global Quote']['05. price']) {
-                price = parseFloat(data['Global Quote']['05. price']);
-              }
+        // Try Yahoo Finance first (more reliable)
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          const response = await fetch(
+            `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`,
+            { 
+              headers: { 'User-Agent': 'Mozilla/5.0' },
+              signal: controller.signal
             }
-          } catch (e) {
-            console.log("Alpha Vantage fetch failed:", e);
+          );
+          clearTimeout(timeout);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.quoteResponse?.result?.[0]?.regularMarketPrice) {
+              price = data.quoteResponse.result[0].regularMarketPrice;
+            }
           }
+        } catch (e) {
+          console.log("Yahoo Finance fetch failed:", e);
         }
 
-        // Fallback: Try Yahoo Finance
+        // Fallback: Try Alpha Vantage API for US stocks and ETFs
         if (!price) {
-          try {
-            const response = await fetch(
-              `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`,
-              { headers: { 'User-Agent': 'Mozilla/5.0' } }
-            );
-            if (response.ok) {
-              const data = await response.json();
-              if (data.quoteResponse?.result?.[0]?.regularMarketPrice) {
-                price = data.quoteResponse.result[0].regularMarketPrice;
+          const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+          if (apiKey) {
+            try {
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 5000);
+              const response = await fetch(
+                `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(symbol)}&apikey=${apiKey}`,
+                { signal: controller.signal }
+              );
+              clearTimeout(timeout);
+              if (response.ok) {
+                const data = await response.json();
+                if (data['Global Quote'] && data['Global Quote']['05. price']) {
+                  price = parseFloat(data['Global Quote']['05. price']);
+                }
               }
+            } catch (e) {
+              console.log("Alpha Vantage fetch failed:", e);
             }
-          } catch (e) {
-            console.log("Yahoo Finance fetch failed:", e);
           }
         }
 
