@@ -58,24 +58,6 @@ export function SummaryCards({ totalAssets, totalDebt, netWorth, monthlyChange, 
       testId: "card-total-assets",
     },
     {
-      title: "Toplam Borç",
-      value: formatCurrency(totalDebt),
-      icon: CreditCard,
-      iconBg: "bg-red-100 dark:bg-red-900/30",
-      iconColor: "text-red-600 dark:text-red-400",
-      change: null,
-      testId: "card-total-debt",
-    },
-    {
-      title: "Net Değer",
-      value: formatCurrency(netWorth),
-      icon: PiggyBank,
-      iconBg: "bg-emerald-100 dark:bg-emerald-900/30",
-      iconColor: "text-emerald-600 dark:text-emerald-400",
-      change: null,
-      testId: "card-net-worth",
-    },
-    {
       title: "Aylık Değişim",
       value: formatPercent(monthlyChange),
       icon: monthlyChange >= 0 ? TrendingUp : TrendingDown,
@@ -91,7 +73,7 @@ export function SummaryCards({ totalAssets, totalDebt, netWorth, monthlyChange, 
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
       {cards.map((card) => (
         <Card key={card.title} data-testid={card.testId}>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">

@@ -24,23 +24,26 @@ interface PortfolioTableProps {
 }
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
-  hisse: "Hisse Senedi",
+  "abd-hisse": "ABD Hisse",
+  hisse: "BIST Hisse",
   etf: "ETF",
   kripto: "Kripto",
   gayrimenkul: "Gayrimenkul",
 };
 
 const ASSET_TYPE_COLORS: Record<string, string> = {
+  "abd-hisse": "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
   hisse: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   etf: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
   kripto: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
   gayrimenkul: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
 };
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number, currency: string = 'TRY'): string {
+  const currencyCode = currency === 'USD' ? 'USD' : 'TRY';
   return new Intl.NumberFormat('tr-TR', {
     style: 'currency',
-    currency: 'TRY',
+    currency: currencyCode,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
@@ -140,6 +143,7 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
                 <TableHead className="text-right">Alış Fiyatı</TableHead>
                 <TableHead className="text-right">Güncel Fiyat</TableHead>
                 <TableHead className="text-right">Değer</TableHead>
+                <TableHead className="text-right">Kar/Zarar</TableHead>
                 <TableHead className="text-right">Performans</TableHead>
                 {(onEdit || onSell || onDelete) && <TableHead className="text-right">İşlemler</TableHead>}
               </TableRow>
@@ -178,13 +182,22 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
                       {formatQuantity(quantity, asset.type)}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {formatCurrency(purchasePrice)}
+                      {formatCurrency(purchasePrice, asset.currency)}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {formatCurrency(currentPrice)}
+                      {formatCurrency(currentPrice, asset.currency)}
                     </TableCell>
                     <TableCell className="text-right font-mono font-medium">
-                      {formatCurrency(totalValue)}
+                      {formatCurrency(totalValue, asset.currency)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      <div className={`font-medium ${
+                        (totalValue - totalCost) >= 0 
+                          ? 'text-emerald-600 dark:text-emerald-400' 
+                          : 'text-orange-600 dark:text-orange-400'
+                      }`}>
+                        {(totalValue - totalCost) >= 0 ? '+' : ''}{formatCurrency(totalValue - totalCost, asset.currency)}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className={`flex items-center justify-end gap-1 font-medium ${
