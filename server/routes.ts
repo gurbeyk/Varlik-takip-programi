@@ -368,10 +368,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           console.log(`Could not fetch price for ${symbol}`);
         }
       } else if (type === 'hisse') {
-        // Fetch Turkish stock price from Midas API (free, 15 min delay)
+        // Fetch Turkish stock price from Asenax API (free, real-time BIST data)
         try {
           const response = await fetch(
-            `https://www.getmidas.com/wp-json/midas-api/v1/midas_table_data`,
+            `https://api.asenax.com/bist/all/`,
             {
               headers: {
                 'Content-Type': 'application/json',
@@ -380,26 +380,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           );
           if (response.ok) {
             const data = await response.json();
-            // Midas API returns array of stocks
+            // Asenax API returns array of stocks
             let foundStock = null;
             
             if (Array.isArray(data)) {
-              foundStock = data.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase() || s.code?.toUpperCase() === symbol.toUpperCase());
+              foundStock = data.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase() || s.code?.toUpperCase() === symbol.toUpperCase() || s.ticker?.toUpperCase() === symbol.toUpperCase());
             } else if (data.data && Array.isArray(data.data)) {
-              foundStock = data.data.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase() || s.code?.toUpperCase() === symbol.toUpperCase());
+              foundStock = data.data.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase() || s.code?.toUpperCase() === symbol.toUpperCase() || s.ticker?.toUpperCase() === symbol.toUpperCase());
             } else if (data.stocks && Array.isArray(data.stocks)) {
-              foundStock = data.stocks.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase() || s.code?.toUpperCase() === symbol.toUpperCase());
+              foundStock = data.stocks.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase() || s.code?.toUpperCase() === symbol.toUpperCase() || s.ticker?.toUpperCase() === symbol.toUpperCase());
             }
             
             if (foundStock) {
-              const priceValue = foundStock.last || foundStock.close || foundStock.price || foundStock.value;
+              // Try various possible price field names
+              const priceValue = foundStock.last || foundStock.close || foundStock.price || foundStock.value || foundStock.bid || foundStock.ask;
               if (priceValue) {
                 price = parseFloat(priceValue);
               }
             }
           }
         } catch (e) {
-          console.log("Midas API fetch failed:", e);
+          console.log("Asenax API fetch failed:", e);
         }
       }
 
