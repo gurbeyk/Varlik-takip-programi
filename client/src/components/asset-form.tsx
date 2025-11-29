@@ -227,7 +227,7 @@ export function AssetForm({
                   <FormLabel>
                     Sembol {assetType === "abd-hisse" || assetType === "hisse" ? "" : "(Opsiyonel)"}
                   </FormLabel>
-                  {assetType === "abd-hisse" || assetType === "hisse" ? (
+                  {assetType === "hisse" ? (
                     <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
                       <PopoverTrigger asChild>
                         <Button
@@ -284,7 +284,7 @@ export function AssetForm({
                   ) : (
                     <FormControl>
                       <Input
-                        placeholder={assetType === "etf" ? "Örn: VOO" : assetType === "kripto" ? "Örn: BTC" : "Sembol"}
+                        placeholder={assetType === "etf" ? "Örn: VOO" : assetType === "abd-hisse" ? "Örn: AAPL" : assetType === "kripto" ? "Örn: BTC" : "Sembol"}
                         {...field}
                         onChange={(e) => {
                           field.onChange(e);
