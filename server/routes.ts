@@ -216,10 +216,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post('/api/assets/:id/sell', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { sellPrice } = req.body;
+      const { sellPrice, sellQuantity, sellDate } = req.body;
 
       if (!sellPrice || Number(sellPrice) <= 0) {
         return res.status(400).json({ message: "Invalid sell price" });
+      }
+
+      if (!sellQuantity || Number(sellQuantity) <= 0) {
+        return res.status(400).json({ message: "Invalid sell quantity" });
       }
 
       // Verify ownership
@@ -231,14 +235,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const quantity = Number(existingAsset.quantity);
+      const totalQuantity = Number(existingAsset.quantity);
+      const qtyToSell = Number(sellQuantity);
       const purchasePrice = Number(existingAsset.purchasePrice);
       const salePrice = Number(sellPrice);
-      
-      // Calculate realized P&L
-      const totalCost = quantity * purchasePrice;
-      const totalRevenue = quantity * salePrice;
-      const realizedPnL = totalRevenue - totalCost;
+
+      // Validate sell quantity
+      if (qtyToSell > totalQuantity) {
+        return res.status(400).json({ message: "Cannot sell more than available quantity" });
+      }
+
+      // Calculate realized P&L for sold portion
+      const totalCostForSold = qtyToSell * purchasePrice;
+      const totalRevenue = qtyToSell * salePrice;
+      const realizedPnL = totalRevenue - totalCostForSold;
 
       // Create a sell transaction
       await storage.createTransaction(userId, {
@@ -246,19 +256,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         type: 'sell',
         assetName: existingAsset.name,
         assetType: existingAsset.type,
-        quantity: existingAsset.quantity,
+        quantity: qtyToSell.toString(),
         price: salePrice.toString(),
         totalAmount: totalRevenue.toString(),
         currency: existingAsset.currency,
         realizedPnL: realizedPnL.toString(),
       });
 
-      // Delete the asset
-      await storage.deleteAsset(req.params.id);
+      // If selling all quantity, delete the asset. Otherwise, update quantity
+      if (qtyToSell === totalQuantity) {
+        await storage.deleteAsset(req.params.id);
+      } else {
+        // Update asset with reduced quantity
+        const remainingQuantity = totalQuantity - qtyToSell;
+        await storage.updateAsset(req.params.id, {
+          quantity: remainingQuantity.toString(),
+        });
+      }
 
       res.status(200).json({ 
         message: "Asset sold successfully",
-        realizedPnL 
+        realizedPnL,
+        soldQuantity: qtyToSell,
+        remainingQuantity: qtyToSell === totalQuantity ? 0 : totalQuantity - qtyToSell,
       });
     } catch (error) {
       console.error("Error selling asset:", error);
