@@ -84,11 +84,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // ETF name lookup
+  // Asset name lookup (for US stocks and ETFs)
+  app.get('/api/asset-name/:symbol', async (req: any, res) => {
+    try {
+      const symbol = req.params.symbol;
+      const scriptPath = path.join(__dirname, 'get-asset-name.py');
+      const result = execSync(`python3 ${scriptPath} ${symbol}`, { encoding: 'utf-8' });
+      const data = JSON.parse(result);
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching asset name:", error);
+      res.json({ name: "Bilinmeyen Kod" });
+    }
+  });
+
+  // Legacy ETF name lookup (redirect to asset-name)
   app.get('/api/etf-name/:symbol', async (req: any, res) => {
     try {
       const symbol = req.params.symbol;
-      const scriptPath = path.join(__dirname, 'get-etf-name.py');
+      const scriptPath = path.join(__dirname, 'get-asset-name.py');
       const result = execSync(`python3 ${scriptPath} ${symbol}`, { encoding: 'utf-8' });
       const data = JSON.parse(result);
       res.json(data);

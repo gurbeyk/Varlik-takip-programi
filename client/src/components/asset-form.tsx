@@ -130,17 +130,17 @@ export function AssetForm({
     staleTime: Infinity,
   });
 
-  // Fetch ETF name when symbol is entered
-  const handleEtfSymbolChange = async (symbol: string) => {
-    if (assetType === "etf" && symbol.length > 0) {
+  // Fetch asset name when symbol is entered (for US stocks and ETFs)
+  const handleSymbolNameLookup = async (symbol: string) => {
+    if ((assetType === "etf" || assetType === "abd-hisse") && symbol.length > 0) {
       try {
-        const response = await fetch(`/api/etf-name/${encodeURIComponent(symbol)}`);
+        const response = await fetch(`/api/asset-name/${encodeURIComponent(symbol)}`);
         const data = await response.json();
         if (data.name && data.name !== "Bilinmeyen Kod") {
           form.setValue("name", data.name);
         }
       } catch (error) {
-        console.error("Failed to fetch ETF name:", error);
+        console.error("Failed to fetch asset name:", error);
       }
     }
   };
@@ -288,8 +288,8 @@ export function AssetForm({
                         {...field}
                         onChange={(e) => {
                           field.onChange(e);
-                          if (assetType === "etf") {
-                            handleEtfSymbolChange(e.target.value);
+                          if (assetType === "etf" || assetType === "abd-hisse") {
+                            handleSymbolNameLookup(e.target.value);
                           }
                         }}
                         data-testid="input-asset-symbol"
