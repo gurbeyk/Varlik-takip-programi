@@ -4,7 +4,8 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertAssetSchema } from "@shared/schema";
 import { z } from "zod";
-import * as YF from "yahoo-finance2";
+import { execSync } from "child_process";
+import * as path from "path";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<void> {
   // Auth middleware
@@ -369,17 +370,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           console.log(`Could not fetch price for ${symbol}`);
         }
       } else if (type === 'hisse') {
-        // BIST stocks: try Yahoo Finance with .IS suffix
+        // BIST stocks: use Python yfinance to get price
         try {
-          // Yahoo Finance uses .IS suffix for BIST stocks
-          const yahooSymbol = `${symbol}.IS`;
-          const quote = await YF.quote(yahooSymbol);
-          if (quote && quote.regularMarketPrice) {
-            price = quote.regularMarketPrice;
+          const scriptPath = path.join(__dirname, 'fetch-bist-price.py');
+          const result = execSync(`python3 ${scriptPath} "${symbol}"`, { encoding: 'utf-8', timeout: 10000 });
+          const data = JSON.parse(result);
+          if (data.price) {
+            price = data.price;
           }
         } catch (e) {
-          console.log(`Yahoo Finance failed for BIST stock ${symbol}:`, e);
-          // If Yahoo Finance fails, price remains unset - user must update manually
+          console.log(`BIST price fetch failed for ${symbol}:`, e);
+          // If price fetch fails, price remains unset - user must update manually
         }
       }
 
