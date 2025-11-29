@@ -64,8 +64,8 @@ function consolidateAssets(assets: Asset[]): (Asset & { consolidatedIds: string[
   const consolidated = new Map<string, Asset & { consolidatedIds: string[] }>();
   
   assets.forEach(asset => {
-    // Symbol, type ve currency'ye göre key oluştur
-    const key = `${asset.symbol || asset.name}-${asset.type}-${asset.currency || 'TRY'}`;
+    // Symbol, type ve currency'ye göre key oluştur (symbol case-insensitive)
+    const key = `${(asset.symbol || asset.name).toLowerCase()}-${asset.type}-${asset.currency || 'TRY'}`;
     
     if (consolidated.has(key)) {
       const existing = consolidated.get(key)!;
