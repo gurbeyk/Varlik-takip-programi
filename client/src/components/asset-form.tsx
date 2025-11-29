@@ -136,8 +136,8 @@ export function AssetForm({
     if (selectedType) {
       setCurrency(selectedType.currency);
     }
-    // Reset currentPrice when changing type to abd-hisse
-    if (value === "abd-hisse") {
+    // Reset currentPrice for non-hisse types
+    if (value !== "hisse") {
       form.setValue("currentPrice", "");
     }
   };
@@ -150,8 +150,11 @@ export function AssetForm({
   };
 
   const handleSubmit = (values: AssetFormValues) => {
-    // For abd-hisse and hisse, ensure currentPrice is set
-    if ((assetType === "abd-hisse" || assetType === "hisse") && !values.currentPrice) {
+    // For abd-hisse, hisse - ensure currentPrice is set
+    if (assetType === "abd-hisse" && !values.currentPrice) {
+      values.currentPrice = values.purchasePrice;
+    }
+    if (assetType === "hisse" && !values.currentPrice) {
       values.currentPrice = values.purchasePrice;
     }
     
@@ -360,7 +363,7 @@ export function AssetForm({
                 )}
               />
 
-              {assetType !== "abd-hisse" && assetType !== "hisse" && (
+              {assetType === "hisse" && (
                 <FormField
                   control={form.control}
                   name="currentPrice"
