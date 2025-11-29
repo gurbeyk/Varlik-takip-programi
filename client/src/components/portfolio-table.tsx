@@ -59,8 +59,46 @@ function formatQuantity(value: number, type: string): string {
   return value.toFixed(2);
 }
 
+// Konsolidasyon: Aynı varlığı (symbol+type+currency) birden fazla satın aldıysa birleştir
+function consolidateAssets(assets: Asset[]): (Asset & { consolidatedIds: string[] })[] {
+  const consolidated = new Map<string, Asset & { consolidatedIds: string[] }>();
+  
+  assets.forEach(asset => {
+    // Symbol, type ve currency'ye göre key oluştur
+    const key = `${asset.symbol || asset.name}-${asset.type}-${asset.currency || 'TRY'}`;
+    
+    if (consolidated.has(key)) {
+      const existing = consolidated.get(key)!;
+      const existingQty = Number(existing.quantity);
+      const newQty = Number(asset.quantity);
+      const existingPrice = Number(existing.purchasePrice);
+      const newPrice = Number(asset.purchasePrice);
+      
+      // Ortalama alış fiyatı hesapla
+      const weightedAvgPrice = (existingQty * existingPrice + newQty * newPrice) / (existingQty + newQty);
+      
+      // Toplam miktar
+      const totalQty = existingQty + newQty;
+      
+      existing.quantity = totalQty as any;
+      existing.purchasePrice = weightedAvgPrice as any;
+      existing.consolidatedIds.push(asset.id);
+    } else {
+      consolidated.set(key, {
+        ...asset,
+        consolidatedIds: [asset.id]
+      });
+    }
+  });
+  
+  return Array.from(consolidated.values());
+}
+
 export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, onRefreshPrices }: PortfolioTableProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Konsolidation yap
+  const consolidatedAssets = consolidateAssets(assets);
 
   const handleRefreshPrices = async () => {
     if (!onRefreshPrices) return;
@@ -96,7 +134,7 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
       </Card>
     );
   }
-
+  
   if (assets.length === 0) {
     return (
       <Card data-testid="table-portfolio">
@@ -149,7 +187,7 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
               </TableRow>
             </TableHeader>
             <TableBody>
-              {assets.map((asset) => {
+              {consolidatedAssets.map((asset) => {
                 const quantity = Number(asset.quantity);
                 const purchasePrice = Number(asset.purchasePrice);
                 const currentPrice = Number(asset.currentPrice);
