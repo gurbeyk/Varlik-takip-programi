@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertAssetSchema } from "@shared/schema";
 import { z } from "zod";
+import * as YF from "yahoo-finance2";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<void> {
   // Auth middleware
@@ -368,8 +369,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           console.log(`Could not fetch price for ${symbol}`);
         }
       } else if (type === 'hisse') {
-        // BIST stocks: manual price update only (no free API available)
-        // Users must enter currentPrice manually when editing assets
+        // BIST stocks: try Yahoo Finance with .IS suffix
+        try {
+          // Yahoo Finance uses .IS suffix for BIST stocks
+          const yahooSymbol = `${symbol}.IS`;
+          const quote = await YF.quote(yahooSymbol);
+          if (quote && quote.regularMarketPrice) {
+            price = quote.regularMarketPrice;
+          }
+        } catch (e) {
+          console.log(`Yahoo Finance failed for BIST stock ${symbol}:`, e);
+          // If Yahoo Finance fails, price remains unset - user must update manually
+        }
       }
 
       if (price) {
