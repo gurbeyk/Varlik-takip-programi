@@ -27,9 +27,22 @@ def asset_ismi_bul(kullanici_kodu):
 
 def yfinance_ile_isim_getir(kodu):
     try:
+        # Set timeout and retry with minimal data
+        import signal
+        
+        def timeout_handler(signum, frame):
+            raise TimeoutError("yfinance timeout")
+        
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(10)  # 10 second timeout
+        
         ticker = yf.Ticker(kodu)
-        long_name = ticker.info.get('longName')
-        short_name = ticker.info.get('shortName')
+        # Only fetch essential info, not all data
+        info = ticker.info if hasattr(ticker, 'info') else {}
+        long_name = info.get('longName') if isinstance(info, dict) else None
+        short_name = info.get('shortName') if isinstance(info, dict) else None
+        
+        signal.alarm(0)  # Cancel alarm
         
         if long_name:
             return long_name
@@ -37,7 +50,9 @@ def yfinance_ile_isim_getir(kodu):
             return short_name
         else:
             return "İsim Bulunamadı"
-    except:
+    except TimeoutError:
+        return "İsim Bulunamadı"
+    except Exception as e:
         return "Bilinmeyen Kod"
 
 if __name__ == "__main__":

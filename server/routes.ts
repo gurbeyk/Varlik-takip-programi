@@ -89,7 +89,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const symbol = req.params.symbol.toUpperCase().trim();
       const scriptPath = path.join(__dirname, 'get-asset-name.py');
-      const result = execSync(`python3 ${scriptPath} "${symbol}"`, { encoding: 'utf-8', timeout: 15000 });
+      const result = execSync(`python3 ${scriptPath} "${symbol}"`, { encoding: 'utf-8', timeout: 12000 });
       const data = JSON.parse(result);
       res.json(data);
     } catch (error) {
@@ -103,7 +103,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const symbol = req.params.symbol.toUpperCase().trim();
       const scriptPath = path.join(__dirname, 'get-asset-name.py');
-      const result = execSync(`python3 ${scriptPath} "${symbol}"`, { encoding: 'utf-8', timeout: 15000 });
+      const result = execSync(`python3 ${scriptPath} "${symbol}"`, { encoding: 'utf-8', timeout: 12000 });
       const data = JSON.parse(result);
       res.json(data);
     } catch (error) {
