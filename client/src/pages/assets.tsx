@@ -94,8 +94,8 @@ export default function Assets() {
   });
 
   const sellMutation = useMutation({
-    mutationFn: async ({ id, sellPrice }: { id: string; sellPrice: number }) => {
-      return await apiRequest("POST", `/api/assets/${id}/sell`, { sellPrice });
+    mutationFn: async ({ id, sellPrice, sellQuantity, sellDate }: { id: string; sellPrice: number; sellQuantity: number; sellDate?: string }) => {
+      return await apiRequest("POST", `/api/assets/${id}/sell`, { sellPrice, sellQuantity, sellDate });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
@@ -191,9 +191,14 @@ export default function Assets() {
     }
   };
 
-  const handleConfirmSell = (values: { sellPrice: number }) => {
+  const handleConfirmSell = (values: { sellPrice: number; sellQuantity: number; sellDate?: string }) => {
     if (sellingAsset) {
-      sellMutation.mutate({ id: sellingAsset.id, sellPrice: values.sellPrice });
+      sellMutation.mutate({ 
+        id: sellingAsset.id, 
+        sellPrice: values.sellPrice,
+        sellQuantity: values.sellQuantity,
+        sellDate: values.sellDate,
+      });
     }
   };
 
