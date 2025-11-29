@@ -82,6 +82,40 @@ const ASSET_TYPES = [
   { value: "gayrimenkul", label: "Gayrimenkul", currency: "TRY" },
 ];
 
+// Crypto symbol to name mapping
+const CRYPTO_NAMES: { [key: string]: string } = {
+  "BTC": "Bitcoin",
+  "ETH": "Ethereum",
+  "BNB": "Binance Coin",
+  "XRP": "XRP",
+  "ADA": "Cardano",
+  "DOGE": "Dogecoin",
+  "SOL": "Solana",
+  "MATIC": "Polygon",
+  "LTC": "Litecoin",
+  "XLM": "Stellar Lumens",
+  "LINK": "Chainlink",
+  "DOT": "Polkadot",
+  "AVAX": "Avalanche",
+  "UNI": "Uniswap",
+  "ATOM": "Cosmos",
+  "XMR": "Monero",
+  "XEM": "NEM",
+  "ZEC": "Zcash",
+  "DASH": "Dash",
+  "ETC": "Ethereum Classic",
+  "BCH": "Bitcoin Cash",
+  "BSV": "Bitcoin SV",
+  "TRX": "TRON",
+  "VET": "VeChain",
+  "THETA": "Theta",
+  "ICP": "Internet Computer",
+  "FIL": "Filecoin",
+  "NEAR": "NEAR Protocol",
+  "ALGO": "Algorand",
+  "MINA": "Mina",
+};
+
 interface USStock {
   id: string;
   symbol: string;
@@ -130,8 +164,21 @@ export function AssetForm({
     staleTime: Infinity,
   });
 
-  // Fetch asset name when symbol is entered (for US stocks and ETFs)
+  // Fetch asset name when symbol is entered (for US stocks, ETFs, and crypto)
   const handleSymbolNameLookup = async (symbol: string) => {
+    if (symbol.length === 0) return;
+
+    // Handle crypto symbols
+    if (assetType === "kripto") {
+      const upperSymbol = symbol.toUpperCase();
+      const cryptoName = CRYPTO_NAMES[upperSymbol];
+      if (cryptoName) {
+        form.setValue("name", cryptoName);
+      }
+      return;
+    }
+
+    // Handle US stocks and ETFs
     if ((assetType === "etf" || assetType === "abd-hisse") && symbol.length > 0) {
       try {
         const response = await fetch(`/api/asset-name/${encodeURIComponent(symbol)}`);
@@ -289,7 +336,7 @@ export function AssetForm({
                         onChange={(e) => {
                           field.onChange(e);
                           const currentType = form.getValues("type");
-                          if (currentType === "etf" || currentType === "abd-hisse") {
+                          if (currentType === "etf" || currentType === "abd-hisse" || currentType === "kripto") {
                             handleSymbolNameLookup(e.target.value);
                           }
                         }}
