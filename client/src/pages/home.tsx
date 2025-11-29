@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SummaryCards } from "@/components/summary-cards";
+import { ProfitLossSummary } from "@/components/profit-loss-summary";
 import { AssetDistributionChart } from "@/components/asset-distribution-chart";
 import { PerformanceChart } from "@/components/performance-chart";
 import { PortfolioTable } from "@/components/portfolio-table";
@@ -68,6 +69,8 @@ export default function Home() {
         monthlyChange={summary?.monthlyChange || 0}
         isLoading={isLoading}
       />
+
+      <ProfitLossSummary assets={assets} isLoading={assetsLoading} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <AssetDistributionChart assets={assets} isLoading={assetsLoading} />

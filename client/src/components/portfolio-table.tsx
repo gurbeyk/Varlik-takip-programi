@@ -182,13 +182,13 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
                       {formatQuantity(quantity, asset.type)}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {formatCurrency(purchasePrice, asset.currency)}
+                      {formatCurrency(purchasePrice, asset.currency || 'TRY')}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {formatCurrency(currentPrice, asset.currency)}
+                      {formatCurrency(currentPrice, asset.currency || 'TRY')}
                     </TableCell>
                     <TableCell className="text-right font-mono font-medium">
-                      {formatCurrency(totalValue, asset.currency)}
+                      {formatCurrency(totalValue, asset.currency || 'TRY')}
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       <div className={`font-medium ${
@@ -196,7 +196,7 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
                           ? 'text-emerald-600 dark:text-emerald-400' 
                           : 'text-orange-600 dark:text-orange-400'
                       }`}>
-                        {(totalValue - totalCost) >= 0 ? '+' : ''}{formatCurrency(totalValue - totalCost, asset.currency)}
+                        {(totalValue - totalCost) >= 0 ? '+' : ''}{formatCurrency(totalValue - totalCost, asset.currency || 'TRY')}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
