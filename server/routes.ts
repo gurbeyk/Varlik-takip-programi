@@ -380,18 +380,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       let price = null;
 
       if (type === 'kripto') {
-        // Try CoinGecko for crypto
+        // Crypto: use Python script with CoinGecko API and proper symbol mapping
         try {
-          const response = await fetch(
-            `https://api.coingecko.com/api/v3/simple/price?ids=${symbol.toLowerCase()}&vs_currencies=usd`
-          );
-          const data = await response.json();
-          const id = Object.keys(data)[0];
-          if (data[id]?.usd) {
-            price = data[id].usd;
+          const scriptPath = path.join(__dirname, 'fetch-crypto-price.py');
+          const result = execSync(`python3 ${scriptPath} "${symbol.toUpperCase()}"`, { encoding: 'utf-8', timeout: 10000 });
+          const data = JSON.parse(result);
+          if (data.price) {
+            price = data.price;
           }
         } catch (e) {
-          console.log("CoinGecko fetch failed:", e);
+          console.log(`Crypto price fetch failed for ${symbol}:`, e);
         }
       } else if (type === 'abd-hisse' || type === 'etf') {
         // US stocks and ETFs: use Python yfinance to get price
