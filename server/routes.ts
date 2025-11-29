@@ -368,40 +368,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           console.log(`Could not fetch price for ${symbol}`);
         }
       } else if (type === 'hisse') {
-        // Fetch Turkish stock price from Asenax API (free, real-time BIST data)
-        try {
-          const response = await fetch(
-            `https://api.asenax.com/bist/all/`,
-            {
-              headers: {
-                'Content-Type': 'application/json',
-              }
-            }
-          );
-          if (response.ok) {
-            const data = await response.json();
-            // Asenax API returns array of stocks
-            let foundStock = null;
-            
-            if (Array.isArray(data)) {
-              foundStock = data.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase() || s.code?.toUpperCase() === symbol.toUpperCase() || s.ticker?.toUpperCase() === symbol.toUpperCase());
-            } else if (data.data && Array.isArray(data.data)) {
-              foundStock = data.data.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase() || s.code?.toUpperCase() === symbol.toUpperCase() || s.ticker?.toUpperCase() === symbol.toUpperCase());
-            } else if (data.stocks && Array.isArray(data.stocks)) {
-              foundStock = data.stocks.find((s: any) => s.symbol?.toUpperCase() === symbol.toUpperCase() || s.code?.toUpperCase() === symbol.toUpperCase() || s.ticker?.toUpperCase() === symbol.toUpperCase());
-            }
-            
-            if (foundStock) {
-              // Try various possible price field names
-              const priceValue = foundStock.last || foundStock.close || foundStock.price || foundStock.value || foundStock.bid || foundStock.ask;
-              if (priceValue) {
-                price = parseFloat(priceValue);
-              }
-            }
-          }
-        } catch (e) {
-          console.log("Asenax API fetch failed:", e);
-        }
+        // BIST stocks: manual price update only (no free API available)
+        // Users must enter currentPrice manually when editing assets
       }
 
       if (price) {
