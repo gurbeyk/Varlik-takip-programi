@@ -165,11 +165,8 @@ export function AssetForm({
   };
 
   const handleSubmit = (values: AssetFormValues) => {
-    // For abd-hisse, hisse - ensure currentPrice is set
-    if (assetType === "abd-hisse" && !values.currentPrice) {
-      values.currentPrice = values.purchasePrice;
-    }
-    if (assetType === "hisse" && !values.currentPrice) {
+    // For abd-hisse, hisse, etf - ensure currentPrice is set
+    if ((assetType === "abd-hisse" || assetType === "hisse" || assetType === "etf") && !values.currentPrice) {
       values.currentPrice = values.purchasePrice;
     }
     
