@@ -288,7 +288,8 @@ export function AssetForm({
                         {...field}
                         onChange={(e) => {
                           field.onChange(e);
-                          if (assetType === "etf" || assetType === "abd-hisse") {
+                          const currentType = form.getValues("type");
+                          if (currentType === "etf" || currentType === "abd-hisse") {
                             handleSymbolNameLookup(e.target.value);
                           }
                         }}
