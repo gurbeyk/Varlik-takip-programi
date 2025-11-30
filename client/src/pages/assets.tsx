@@ -164,12 +164,19 @@ export default function Assets() {
   });
 
   const refreshPricesMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (assetsToUpdate: Asset[]) => {
       // Update prices for all assets in parallel
-      const priceUpdatePromises = assets.map((asset) =>
+      console.log(`Updating ${assetsToUpdate.length} assets`, assetsToUpdate.map(a => ({ id: a.id, name: a.name, type: a.type })));
+      const priceUpdatePromises = assetsToUpdate.map((asset) =>
         apiRequest("POST", `/api/assets/${asset.id}/price`, {})
+          .catch(e => {
+            console.error(`Failed to update price for ${asset.name} (${asset.id}):`, e);
+            return null;
+          })
       );
-      await Promise.all(priceUpdatePromises);
+      const results = await Promise.all(priceUpdatePromises);
+      const successful = results.filter(r => r !== null).length;
+      console.log(`Price updates completed: ${successful}/${assetsToUpdate.length} successful`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
@@ -287,7 +294,7 @@ export default function Assets() {
         onEdit={handleEdit}
         onSell={handleSell}
         onDelete={handleDelete}
-        onRefreshPrices={() => refreshPricesMutation.mutateAsync()}
+        onRefreshPrices={() => refreshPricesMutation.mutateAsync(assets)}
       />
 
       <AssetForm
