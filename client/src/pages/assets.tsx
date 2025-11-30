@@ -164,19 +164,26 @@ export default function Assets() {
   });
 
   const refreshPricesMutation = useMutation({
-    mutationFn: async (assetsToUpdate: Asset[]) => {
-      // Update prices for all assets in parallel
-      console.log(`Updating ${assetsToUpdate.length} assets`, assetsToUpdate.map(a => ({ id: a.id, name: a.name, type: a.type })));
-      const priceUpdatePromises = assetsToUpdate.map((asset) =>
+    mutationFn: async () => {
+      // Get latest assets from cache to ensure we have all assets including TEFAS funds
+      const cachedAssets = queryClient.getQueryData(["/api/assets"]) as Asset[] || [];
+      console.log(`[RefreshPrices] Updating ${cachedAssets.length} assets:`, cachedAssets.map(a => ({ id: a.id, name: a.name, type: a.type, symbol: a.symbol })));
+      
+      const priceUpdatePromises = cachedAssets.map((asset) =>
         apiRequest("POST", `/api/assets/${asset.id}/price`, {})
+          .then(() => {
+            console.log(`[RefreshPrices] ✓ Updated ${asset.name} (${asset.symbol})`);
+            return true;
+          })
           .catch(e => {
-            console.error(`Failed to update price for ${asset.name} (${asset.id}):`, e);
-            return null;
+            console.error(`[RefreshPrices] ✗ Failed to update ${asset.name} (${asset.id}):`, e.message);
+            return false;
           })
       );
+      
       const results = await Promise.all(priceUpdatePromises);
-      const successful = results.filter(r => r !== null).length;
-      console.log(`Price updates completed: ${successful}/${assetsToUpdate.length} successful`);
+      const successful = results.filter(r => r === true).length;
+      console.log(`[RefreshPrices] Completed: ${successful}/${cachedAssets.length} successful`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
@@ -187,13 +194,12 @@ export default function Assets() {
       });
     },
     onError: (error) => {
-      console.error("Price update error:", error);
+      console.error("[RefreshPrices] Error:", error);
       toast({
         title: "Uyarı",
         description: "Bazı fiyatlar güncellenemeyebilir, ancak mevcut veriler gösterilmektedir.",
         variant: "default",
       });
-      // Still invalidate queries to show any successful updates
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
     },
@@ -294,7 +300,7 @@ export default function Assets() {
         onEdit={handleEdit}
         onSell={handleSell}
         onDelete={handleDelete}
-        onRefreshPrices={() => refreshPricesMutation.mutateAsync(assets)}
+        onRefreshPrices={() => refreshPricesMutation.mutateAsync()}
       />
 
       <AssetForm
