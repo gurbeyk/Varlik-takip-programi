@@ -163,6 +163,35 @@ export default function Assets() {
     },
   });
 
+  const refreshPricesMutation = useMutation({
+    mutationFn: async () => {
+      // Update prices for all assets in parallel
+      const priceUpdatePromises = assets.map((asset) =>
+        apiRequest("POST", `/api/assets/${asset.id}/price`, {})
+      );
+      await Promise.all(priceUpdatePromises);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
+      toast({
+        title: "Başarılı",
+        description: "Tüm fiyatlar güncellendi.",
+      });
+    },
+    onError: (error) => {
+      console.error("Price update error:", error);
+      toast({
+        title: "Uyarı",
+        description: "Bazı fiyatlar güncellenemeyebilir, ancak mevcut veriler gösterilmektedir.",
+        variant: "default",
+      });
+      // Still invalidate queries to show any successful updates
+      queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
+    },
+  });
+
   const handleCreate = () => {
     setEditingAsset(null);
     setFormOpen(true);
@@ -258,6 +287,7 @@ export default function Assets() {
         onEdit={handleEdit}
         onSell={handleSell}
         onDelete={handleDelete}
+        onRefreshPrices={() => refreshPricesMutation.mutateAsync()}
       />
 
       <AssetForm

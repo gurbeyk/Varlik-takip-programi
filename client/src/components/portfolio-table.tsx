@@ -28,6 +28,7 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   hisse: "BIST Hisse",
   etf: "ETF",
   kripto: "Kripto",
+  fon: "TEFAS Fonu",
   gayrimenkul: "Gayrimenkul",
 };
 
@@ -36,6 +37,7 @@ const ASSET_TYPE_COLORS: Record<string, string> = {
   hisse: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   etf: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
   kripto: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  fon: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
   gayrimenkul: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
 };
 
