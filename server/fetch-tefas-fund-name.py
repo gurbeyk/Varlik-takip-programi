@@ -1,50 +1,36 @@
 #!/usr/bin/env python3
 import sys
 import json
-from datetime import datetime, timedelta
-from tefas import Crawler
+import pandas as pd
+import os
 
-def fon_adi_getir(fon_kodu):
-    """Fetch TEFAS fund name and details"""
-    fon_kodu = fon_kodu.upper()
+# Get the directory where this script is located
+script_dir = os.path.dirname(os.path.abspath(__file__))
+csv_path = os.path.join(script_dir, 'tefas_tr_listesi.csv')
+
+def fon_ismi_bul(kod):
+    """Look up Turkish fund name from CSV"""
+    kod = kod.upper()
     
     try:
-        tefas = Crawler()
+        # Load the CSV with Symbol as index for faster lookup
+        fon_db = pd.read_csv(csv_path, index_col='Symbol')
         
-        # Get today's date and 3 days ago (to handle weekends)
-        bugun = datetime.now().strftime("%Y-%m-%d")
-        gecmis = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
-        
-        # Fetch data from TEFAS
-        veriler = tefas.fetch(
-            start=gecmis, 
-            end=bugun, 
-            name=fon_kodu, 
-            columns=["code", "date", "price", "title"]
-        )
-        
-        if not veriler.empty:
-            # Get the latest entry
-            son_veri = veriler.sort_values(by="date").iloc[-1]
-            
-            return {
-                "kod": str(son_veri['code']),
-                "ad": str(son_veri['title']),
-                "fiyat": float(son_veri['price'])
-            }
+        if kod in fon_db.index:
+            return fon_db.loc[kod]['Name']
         else:
             return None
-            
-    except Exception as e:
+    except:
         return None
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         symbol = sys.argv[1]
-        result = fon_adi_getir(symbol)
-        if result:
-            print(json.dumps({"name": result["ad"], "price": result["fiyat"]}))
+        name = fon_ismi_bul(symbol)
+        
+        if name:
+            print(json.dumps({"name": name}))
         else:
-            print(json.dumps({"error": f"Could not fetch fund name for {symbol}"}))
+            print(json.dumps({"error": f"Could not find Turkish name for {symbol}"}))
     else:
         print(json.dumps({"error": "No symbol provided"}))

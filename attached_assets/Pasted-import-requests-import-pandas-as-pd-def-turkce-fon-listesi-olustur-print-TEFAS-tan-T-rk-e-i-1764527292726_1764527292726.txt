@@ -1,0 +1,53 @@
+import requests
+import pandas as pd
+
+def turkce_fon_listesi_olustur():
+    print("TEFAS'tan Türkçe isimler çekiliyor...")
+
+    # TEFAS'ın resmi sitesinin arka planda kullandığı API adresi
+    url = "https://www.tefas.gov.tr/api/DB/BindComparisonFundReturns"
+    
+    # TEFAS sitesini taklit eden başlıklar (Bunu yapmazsak robot sanıp engelleyebilir)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://www.tefas.gov.tr/FonKarsilastirma.aspx",
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+    }
+
+    # "Tüm Yatırım Fonlarını Getir" diyen parametreler
+    payload = {
+        "calismatipi": "2",
+        "fontip": "YAT",     # Yatırım Fonları
+        "sfontip": "IYF",    # İhtisas dışı fonlar
+        "fas": "0",
+        "bastarih": "01.01.2024", # Tarihin önemi yok, listeyi çekmek için zorunlu alan
+        "bittarih": "01.01.2024"
+    }
+
+    try:
+        response = requests.post(url, data=payload, headers=headers)
+        
+        # Gelen veriyi JSON formatına çevir
+        veriler = response.json()
+        
+        # Pandas tablosuna dönüştür
+        df = pd.DataFrame(veriler['data'])
+        
+        # Bize sadece Kod ve İsim lazım (FONKODU ve FONADI sütunları TEFAS'ta standarttır)
+        df_temiz = df[['FONKODU', 'FONADI']].copy()
+        
+        # Sütun isimlerini programımızla uyumlu hale getirelim
+        df_temiz.rename(columns={'FONKODU': 'Symbol', 'FONADI': 'Name'}, inplace=True)
+        df_temiz['Tur'] = 'TEFAS'
+        
+        # CSV olarak kaydet
+        df_temiz.to_csv('tefas_tr_listesi.csv', index=False)
+        
+        print(f"Başarılı! {len(df_temiz)} adet fon Türkçe isimleriyle kaydedildi.")
+        print("Örnek: ", df_temiz.iloc[0]['Symbol'], "-", df_temiz.iloc[0]['Name'])
+        
+    except Exception as e:
+        print(f"Hata oluştu: {e}")
+
+turkce_fon_listesi_olustur()
