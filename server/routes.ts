@@ -391,6 +391,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         } catch (e) {
           console.log(`Crypto price fetch failed for ${symbol}:`, e);
         }
+      } else if (type === 'fon') {
+        // TEFAS funds: use Python script with tefas-crawler library
+        try {
+          const scriptPath = path.join(__dirname, 'fetch-tefas-price.py');
+          const result = execSync(`python3 ${scriptPath} "${symbol.toUpperCase()}"`, { encoding: 'utf-8', timeout: 15000 });
+          const data = JSON.parse(result);
+          if (data.price) {
+            price = data.price;
+          }
+        } catch (e) {
+          console.log(`TEFAS price fetch failed for ${symbol}:`, e);
+        }
       } else if (type === 'abd-hisse' || type === 'etf') {
         // US stocks and ETFs: use Python yfinance to get price
         try {

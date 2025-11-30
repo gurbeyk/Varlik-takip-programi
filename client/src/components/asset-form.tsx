@@ -79,6 +79,7 @@ const ASSET_TYPES = [
   { value: "abd-hisse", label: "ABD Hisse Senedi", currency: "USD" },
   { value: "etf", label: "Yurtdışı ETF", currency: "USD" },
   { value: "kripto", label: "Kripto Para", currency: "USD" },
+  { value: "fon", label: "TEFAS Fonu", currency: "TRY" },
   { value: "gayrimenkul", label: "Gayrimenkul", currency: "TRY" },
 ];
 

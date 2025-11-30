@@ -65,7 +65,7 @@ export const bistStocks = pgTable(
 export type BISTStock = typeof bistStocks.$inferSelect;
 
 // Asset types enum
-export const assetTypes = ['hisse', 'abd-hisse', 'etf', 'kripto', 'gayrimenkul'] as const;
+export const assetTypes = ['hisse', 'abd-hisse', 'etf', 'kripto', 'gayrimenkul', 'fon'] as const;
 export type AssetType = typeof assetTypes[number];
 
 // Asset type labels
@@ -75,6 +75,7 @@ export const assetTypeLabels: Record<AssetType, string> = {
   'etf': 'ETF',
   'kripto': 'Kripto Para',
   'gayrimenkul': 'Gayrimenkul',
+  'fon': 'TEFAS Fonu',
 };
 
 // Assets table for portfolio tracking
