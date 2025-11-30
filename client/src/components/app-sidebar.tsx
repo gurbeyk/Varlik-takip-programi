@@ -23,12 +23,12 @@ import { Button } from "@/components/ui/button";
 
 const menuItems = [
   {
-    title: "Portföyüm",
+    title: "Portföy Özeti",
     url: "/",
     icon: LayoutDashboard,
   },
   {
-    title: "Varlıklarım",
+    title: "Varlık Detayı",
     url: "/varliklar",
     icon: Wallet,
   },

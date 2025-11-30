@@ -260,7 +260,7 @@ export default function Assets() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground" data-testid="text-page-title">
-            Varlıklarım
+            Varlık Detayı
           </h1>
           <p className="text-muted-foreground">
             Portföyünüzdeki tüm varlıkları yönetin

@@ -66,6 +66,7 @@ export function AssetBreakdown({ assets, isLoading }: AssetBreakdownProps) {
       "ETF": { try: 0, usd: 0 },
       "Kripto": { try: 0, usd: 0 },
       "Gayrimenkul": { try: 0, usd: 0 },
+      "TEFAS Fon": { try: 0, usd: 0 },
     };
 
     assets.forEach((asset) => {
@@ -80,6 +81,7 @@ export function AssetBreakdown({ assets, isLoading }: AssetBreakdownProps) {
       else if (asset.type === "etf") typeKey = "ETF";
       else if (asset.type === "kripto") typeKey = "Kripto";
       else if (asset.type === "gayrimenkul") typeKey = "Gayrimenkul";
+      else if (asset.type === "fon") typeKey = "TEFAS Fon";
 
       if (typeKey && types[typeKey]) {
         if (currency === 'USD') {

@@ -56,7 +56,7 @@ export default function Home() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground" data-testid="text-page-title">
-          Portföyüm
+          Portföy Özeti
         </h1>
         <p className="text-muted-foreground">
           Yatırımlarınızın genel görünümü
@@ -79,8 +79,6 @@ export default function Home() {
         <AssetDistributionChart assets={assets} isLoading={assetsLoading} />
         <PerformanceChart snapshots={snapshots} isLoading={snapshotsLoading} />
       </div>
-
-      <PortfolioTable assets={assets} isLoading={assetsLoading} onRefreshPrices={refreshPrices} />
     </div>
   );
 }
