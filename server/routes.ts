@@ -357,6 +357,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Fetch TEFAS fund name from symbol
+  app.get('/api/tefas-fund-name/:symbol', async (req: any, res) => {
+    try {
+      const symbol = req.params.symbol;
+      const scriptPath = path.join(__dirname, 'fetch-tefas-fund-name.py');
+      const result = execSync(`python3 ${scriptPath} "${symbol}"`, { encoding: 'utf-8', timeout: 15000 });
+      const data = JSON.parse(result);
+      
+      if (data.name) {
+        res.json({ name: data.name });
+      } else {
+        res.status(404).json({ error: "Fund not found" });
+      }
+    } catch (error) {
+      console.error("Error fetching TEFAS fund name:", error);
+      res.status(500).json({ error: "Failed to fetch fund name" });
+    }
+  });
+
   // Fetch and update current price from public APIs
   app.post('/api/assets/:id/price', isAuthenticated, async (req: any, res) => {
     try {

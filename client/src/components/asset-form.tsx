@@ -46,7 +46,7 @@ import type { Asset } from "@shared/schema";
 
 const assetFormSchema = z.object({
   name: z.string().min(1, "Varlık adı zorunludur"),
-  type: z.enum(["hisse", "abd-hisse", "etf", "kripto", "gayrimenkul"], {
+  type: z.enum(["hisse", "abd-hisse", "etf", "kripto", "fon", "gayrimenkul"], {
     required_error: "Varlık tipi seçiniz",
   }),
   symbol: z.string().optional(),
@@ -165,7 +165,7 @@ export function AssetForm({
     staleTime: Infinity,
   });
 
-  // Fetch asset name when symbol is entered (for US stocks, ETFs, and crypto)
+  // Fetch asset name when symbol is entered (for US stocks, ETFs, crypto, and TEFAS funds)
   const handleSymbolNameLookup = async (symbol: string) => {
     if (symbol.length === 0) return;
 
@@ -175,6 +175,20 @@ export function AssetForm({
       const cryptoName = CRYPTO_NAMES[upperSymbol];
       if (cryptoName) {
         form.setValue("name", cryptoName);
+      }
+      return;
+    }
+
+    // Handle TEFAS funds
+    if (assetType === "fon") {
+      try {
+        const response = await fetch(`/api/tefas-fund-name/${encodeURIComponent(symbol)}`);
+        const data = await response.json();
+        if (data.name) {
+          form.setValue("name", data.name);
+        }
+      } catch (error) {
+        console.error("Failed to fetch TEFAS fund name:", error);
       }
       return;
     }
@@ -332,12 +346,12 @@ export function AssetForm({
                   ) : (
                     <FormControl>
                       <Input
-                        placeholder={assetType === "etf" ? "Örn: VOO" : assetType === "abd-hisse" ? "Örn: AAPL" : assetType === "kripto" ? "Örn: BTC" : "Sembol"}
+                        placeholder={assetType === "etf" ? "Örn: VOO" : assetType === "abd-hisse" ? "Örn: AAPL" : assetType === "kripto" ? "Örn: BTC" : assetType === "fon" ? "Örn: MAC, TCD" : "Sembol"}
                         {...field}
                         onChange={(e) => {
                           field.onChange(e);
                           const currentType = form.getValues("type");
-                          if (currentType === "etf" || currentType === "abd-hisse" || currentType === "kripto") {
+                          if (currentType === "etf" || currentType === "abd-hisse" || currentType === "kripto" || currentType === "fon") {
                             handleSymbolNameLookup(e.target.value);
                           }
                         }}
