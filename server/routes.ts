@@ -414,13 +414,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         // TEFAS funds: use Python script with tefas-crawler library
         try {
           const scriptPath = path.join(__dirname, 'fetch-tefas-price.py');
-          const result = execSync(`python3 ${scriptPath} "${symbol.toUpperCase()}"`, { encoding: 'utf-8', timeout: 15000 });
+          const result = execSync(`python3 ${scriptPath} "${symbol.toUpperCase()}"`, { encoding: 'utf-8', timeout: 30000 });
           const data = JSON.parse(result);
           if (data.price) {
             price = data.price;
+          } else if (data.error) {
+            console.log(`TEFAS error for ${symbol}:`, data.error);
           }
         } catch (e) {
-          console.log(`TEFAS price fetch failed for ${symbol}:`, e);
+          console.error(`TEFAS price fetch failed for ${symbol}:`, e.message);
         }
       } else if (type === 'abd-hisse' || type === 'etf') {
         // US stocks and ETFs: use Python yfinance to get price
