@@ -69,6 +69,7 @@ export default function Home() {
         netWorth={summary?.netWorth || 0}
         monthlyChange={summary?.monthlyChange || 0}
         isLoading={isLoading}
+        assets={assets}
       />
 
       <AssetBreakdown assets={assets} isLoading={assetsLoading} />

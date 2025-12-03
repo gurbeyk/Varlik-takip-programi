@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, Wallet, CreditCard, PiggyBank, Percent } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, CreditCard, PiggyBank, Percent, DollarSign } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { queryClient } from "@/lib/queryClient";
 import type { Asset } from "@shared/schema";
 
@@ -11,12 +12,14 @@ interface SummaryCardsProps {
   netWorth: number;
   monthlyChange: number;
   isLoading?: boolean;
+  assets?: Asset[];
 }
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number, currency: string = 'TRY'): string {
+  const currencyCode = currency === 'USD' ? 'USD' : 'TRY';
   return new Intl.NumberFormat('tr-TR', {
     style: 'currency',
-    currency: 'TRY',
+    currency: currencyCode,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
@@ -27,7 +30,54 @@ function formatPercent(value: number): string {
   return `${prefix}${value.toFixed(2)}%`;
 }
 
-export function SummaryCards({ totalAssets, totalDebt, netWorth, monthlyChange, isLoading }: SummaryCardsProps) {
+export function SummaryCards({ totalAssets, totalDebt, netWorth, monthlyChange, isLoading, assets = [] }: SummaryCardsProps) {
+  const [showTotalUSD, setShowTotalUSD] = useState(false);
+  const [exchangeRate, setExchangeRate] = useState(32);
+
+  // Fetch exchange rate on toggle
+  const fetchExchangeRate = async () => {
+    try {
+      const response = await fetch('/api/currency-rate');
+      const data = await response.json();
+      if (data.rate) {
+        setExchangeRate(data.rate);
+      }
+    } catch (error) {
+      console.error("Failed to fetch exchange rate:", error);
+    }
+  };
+
+  // Primary currency for each asset type
+  const primaryCurrency: Record<string, 'TRY' | 'USD'> = {
+    "hisse": "TRY",
+    "abd-hisse": "USD",
+    "etf": "USD",
+    "kripto": "USD",
+    "gayrimenkul": "TRY",
+    "fon": "TRY",
+  };
+
+  // Calculate total assets correctly by currency
+  const calculateTotalAssets = (): number => {
+    let totalTRY = 0;
+    assets.forEach((asset) => {
+      const quantity = Number(asset.quantity);
+      const currentPrice = Number(asset.currentPrice);
+      const value = quantity * currentPrice;
+      const currency = asset.currency || 'TRY';
+      const assetType = asset.type;
+      const primaryCurr = primaryCurrency[assetType] || 'TRY';
+
+      if (primaryCurr === 'TRY' || currency === 'TRY') {
+        totalTRY += value;
+      } else {
+        totalTRY += value * exchangeRate;
+      }
+    });
+    return totalTRY;
+  };
+
+  const calculatedTotal = assets.length > 0 ? calculateTotalAssets() : totalAssets;
   if (isLoading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -47,15 +97,19 @@ export function SummaryCards({ totalAssets, totalDebt, netWorth, monthlyChange, 
     );
   }
 
+  const displayCurrency = showTotalUSD ? 'USD' : 'TRY';
+  const displayTotal = showTotalUSD ? calculatedTotal / exchangeRate : calculatedTotal;
+
   const cards = [
     {
       title: "Toplam Varlık",
-      value: formatCurrency(totalAssets),
+      value: formatCurrency(displayTotal, displayCurrency),
       icon: Wallet,
       iconBg: "bg-blue-100 dark:bg-blue-900/30",
       iconColor: "text-blue-600 dark:text-blue-400",
       change: null,
       testId: "card-total-assets",
+      showButton: true,
     },
     {
       title: "Aylık Değişim",
@@ -69,6 +123,7 @@ export function SummaryCards({ totalAssets, totalDebt, netWorth, monthlyChange, 
         : "text-orange-600 dark:text-orange-400",
       change: monthlyChange,
       testId: "card-monthly-change",
+      showButton: false,
     },
   ];
 
@@ -80,8 +135,29 @@ export function SummaryCards({ totalAssets, totalDebt, netWorth, monthlyChange, 
             <CardTitle className="text-sm font-medium text-muted-foreground">
               {card.title}
             </CardTitle>
-            <div className={`p-2 rounded-lg ${card.iconBg}`}>
-              <card.icon className={`w-5 h-5 ${card.iconColor}`} />
+            <div className="flex items-center gap-2">
+              {card.showButton && (
+                <Button
+                  size="sm"
+                  variant={!showTotalUSD ? 'default' : 'outline'}
+                  onClick={() => {
+                    if (!showTotalUSD) {
+                      setShowTotalUSD(true);
+                    } else {
+                      fetchExchangeRate();
+                      setShowTotalUSD(false);
+                    }
+                  }}
+                  data-testid="button-toggle-summary-currency"
+                  className="gap-1 h-8"
+                >
+                  <DollarSign className="w-3 h-3" />
+                  <span className="text-xs">{displayCurrency}</span>
+                </Button>
+              )}
+              <div className={`p-2 rounded-lg ${card.iconBg}`}>
+                <card.icon className={`w-5 h-5 ${card.iconColor}`} />
+              </div>
             </div>
           </CardHeader>
           <CardContent>
