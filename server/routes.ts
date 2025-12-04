@@ -6,9 +6,8 @@ import { insertAssetSchema } from "@shared/schema";
 import { z } from "zod";
 import { execSync } from "child_process";
 import * as path from "path";
-import { fileURLToPath } from "url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = path.join(process.cwd(), 'server');
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<void> {
   // Auth middleware
