@@ -8,6 +8,9 @@ import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
 
+// Helper to determine if we should use real Replit auth or mock auth
+const shouldUseReplitAuth = !!process.env.REPL_ID;
+
 const getOidcConfig = memoize(
   async () => {
     return await client.discovery(
@@ -23,18 +26,18 @@ export function getSession() {
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
+    createTableIfMissing: true, // changed to true to ensure table exists
     ttl: sessionTtl,
     tableName: "sessions",
   });
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret: process.env.SESSION_SECRET || "dev_secret",
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure: shouldUseReplitAuth, // only secure in prod/replit
       maxAge: sessionTtl,
     },
   });
@@ -65,6 +68,36 @@ export async function setupAuth(app: Express) {
   app.use(getSession());
   app.use(passport.initialize());
   app.use(passport.session());
+
+  if (!shouldUseReplitAuth) {
+    console.log("Setting up Mock Auth for local development");
+    // Mock user middleware
+    app.use(async (req, res, next) => {
+      // Create a mock user
+      const mockUser = {
+        claims: {
+          sub: "dev-user-id",
+          email: "dev@local",
+          first_name: "Dev",
+          last_name: "User",
+          profile_image_url: "https://via.placeholder.com/150"
+        },
+        expires_at: Math.floor(Date.now() / 1000) + 3600 * 24 // 24 hours
+      };
+
+      // Upsert mock user to DB so constraints fail less
+      try {
+        await upsertUser(mockUser.claims);
+      } catch (err) {
+        console.error("Failed to upsert mock user (ignorable if exists):", err);
+      }
+
+      req.user = mockUser;
+      req.isAuthenticated = () => true;
+      next();
+    });
+    return;
+  }
 
   const config = await getOidcConfig();
 
@@ -129,6 +162,10 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  if (!shouldUseReplitAuth) {
+    return next();
+  }
+
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {

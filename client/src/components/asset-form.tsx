@@ -46,7 +46,7 @@ import type { Asset } from "@shared/schema";
 
 const assetFormSchema = z.object({
   name: z.string().min(1, "Varlık adı zorunludur"),
-  type: z.enum(["hisse", "abd-hisse", "etf", "kripto", "fon", "gayrimenkul"], {
+  type: z.enum(["hisse", "abd-hisse", "etf", "kripto", "fon", "befas", "gayrimenkul"], {
     required_error: "Varlık tipi seçiniz",
   }),
   symbol: z.string().optional(),
@@ -80,6 +80,7 @@ const ASSET_TYPES = [
   { value: "etf", label: "Yurtdışı ETF", currency: "USD" },
   { value: "kripto", label: "Kripto Para", currency: "USD" },
   { value: "fon", label: "TEFAS Fonu", currency: "TRY" },
+  { value: "befas", label: "BEFAS (Emeklilik) Fonu", currency: "TRY" },
   { value: "gayrimenkul", label: "Gayrimenkul", currency: "TRY" },
 ];
 
@@ -144,7 +145,7 @@ export function AssetForm({
       quantity: defaultValues?.quantity?.toString() || "",
       purchasePrice: defaultValues?.purchasePrice?.toString() || "",
       currentPrice: defaultValues?.currentPrice?.toString() || "",
-      purchaseDate: defaultValues?.purchaseDate 
+      purchaseDate: defaultValues?.purchaseDate
         ? new Date(defaultValues.purchaseDate).toISOString().split('T')[0]
         : "",
       notes: defaultValues?.notes || "",
@@ -165,7 +166,7 @@ export function AssetForm({
     staleTime: Infinity,
   });
 
-  // Fetch asset name when symbol is entered (for US stocks, ETFs, crypto, and TEFAS funds)
+  // Fetch asset name when symbol is entered (for US stocks, ETFs, crypto, TEFAS, and BEFAS funds)
   const handleSymbolNameLookup = async (symbol: string) => {
     if (symbol.length === 0) return;
 
@@ -189,6 +190,20 @@ export function AssetForm({
         }
       } catch (error) {
         console.error("Failed to fetch TEFAS fund name:", error);
+      }
+      return;
+    }
+
+    // Handle BEFAS funds
+    if (assetType === "befas") {
+      try {
+        const response = await fetch(`/api/befas-fund-name/${encodeURIComponent(symbol)}`);
+        const data = await response.json();
+        if (data.name) {
+          form.setValue("name", data.name);
+        }
+      } catch (error) {
+        console.error("Failed to fetch BEFAS fund name:", error);
       }
       return;
     }
@@ -231,10 +246,10 @@ export function AssetForm({
     if (!values.currentPrice || values.currentPrice === "") {
       values.currentPrice = values.purchasePrice;
     }
-    
+
     const submitData: any = { ...values, currency };
     // Keep purchaseDate as is - can be empty string or ISO date string
-    
+
     onSubmit(submitData);
     form.reset();
     setCurrency("TRY");
@@ -300,7 +315,7 @@ export function AssetForm({
                         >
                           {field.value
                             ? stocks.find((s) => s.symbol === field.value)?.symbol ||
-                              field.value
+                            field.value
                             : "Sembol seçiniz..."}
                         </Button>
                       </PopoverTrigger>
@@ -324,11 +339,10 @@ export function AssetForm({
                                   data-testid={`stock-option-${stock.symbol}`}
                                 >
                                   <Check
-                                    className={`mr-2 h-4 w-4 ${
-                                      field.value === stock.symbol
-                                        ? "opacity-100"
-                                        : "opacity-0"
-                                    }`}
+                                    className={`mr-2 h-4 w-4 ${field.value === stock.symbol
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                      }`}
                                   />
                                   <div className="flex-1">
                                     <div className="font-medium">{stock.symbol}</div>
@@ -346,12 +360,12 @@ export function AssetForm({
                   ) : (
                     <FormControl>
                       <Input
-                        placeholder={assetType === "etf" ? "Örn: VOO" : assetType === "abd-hisse" ? "Örn: AAPL" : assetType === "kripto" ? "Örn: BTC" : assetType === "fon" ? "Örn: MAC, TCD" : "Sembol"}
+                        placeholder={assetType === "etf" ? "Örn: VOO" : assetType === "abd-hisse" ? "Örn: AAPL" : assetType === "kripto" ? "Örn: BTC" : assetType === "fon" ? "Örn: MAC, TCD" : assetType === "befas" ? "Örn: AH1, VES" : "Sembol"}
                         {...field}
                         onChange={(e) => {
                           field.onChange(e);
                           const currentType = form.getValues("type");
-                          if (currentType === "etf" || currentType === "abd-hisse" || currentType === "kripto" || currentType === "fon") {
+                          if (currentType === "etf" || currentType === "abd-hisse" || currentType === "kripto" || currentType === "fon" || currentType === "befas") {
                             handleSymbolNameLookup(e.target.value);
                           }
                         }}
@@ -414,6 +428,24 @@ export function AssetForm({
                       <Input
                         type="date"
                         {...field}
+                        onChange={async (e) => {
+                          field.onChange(e);
+                          const date = e.target.value;
+                          const currentType = form.getValues("type");
+                          const currentSymbol = form.getValues("symbol");
+
+                          if (date && currentSymbol && (currentType === "fon" || currentType === "befas")) {
+                            try {
+                              const response = await fetch(`/api/asset-price-history?symbol=${currentSymbol}&date=${date}`);
+                              const data = await response.json();
+                              if (data.price) {
+                                form.setValue("purchasePrice", data.price.toString());
+                              }
+                            } catch (err) {
+                              console.error("Failed to fetch historical price", err);
+                            }
+                          }
+                        }}
                         data-testid="input-asset-purchase-date"
                       />
                     </FormControl>
@@ -444,27 +476,7 @@ export function AssetForm({
                 )}
               />
 
-              {assetType === "hisse" && (
-                <FormField
-                  control={form.control}
-                  name="currentPrice"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Güncel Fiyat ({currency})</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="any"
-                          placeholder="55.00"
-                          {...field}
-                          data-testid="input-asset-current-price"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+
             </div>
 
             <FormField
@@ -499,8 +511,8 @@ export function AssetForm({
                 {isLoading
                   ? "Kaydediliyor..."
                   : mode === "create"
-                  ? "Ekle"
-                  : "Güncelle"}
+                    ? "Ekle"
+                    : "Güncelle"}
               </Button>
             </div>
           </form>

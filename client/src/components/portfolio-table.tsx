@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,12 +11,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Edit2, Trash2, TrendingUp, TrendingDown, DollarSign, RefreshCw } from "lucide-react";
-import type { Asset } from "@shared/schema";
+import { Edit2, Trash2, TrendingUp, TrendingDown, DollarSign, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import type { Asset, Transaction } from "@shared/schema";
 
 interface PortfolioTableProps {
   assets: Asset[];
+  transactions?: Transaction[];
   isLoading?: boolean;
   onEdit?: (asset: Asset) => void;
   onSell?: (asset: Asset) => void;
@@ -41,13 +50,13 @@ const ASSET_TYPE_COLORS: Record<string, string> = {
   gayrimenkul: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
 };
 
-function formatCurrency(value: number, currency: string = 'TRY'): string {
+function formatCurrency(value: number, currency: string = 'TRY', decimals: number = 2): string {
   const currencyCode = currency === 'USD' ? 'USD' : 'TRY';
   return new Intl.NumberFormat('tr-TR', {
     style: 'currency',
     currency: currencyCode,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   }).format(value);
 }
 
@@ -64,24 +73,24 @@ function formatQuantity(value: number, type: string): string {
 // Konsolidasyon: Aynı varlığı (symbol+type+currency) birden fazla satın aldıysa birleştir
 function consolidateAssets(assets: Asset[]): (Asset & { consolidatedIds: string[] })[] {
   const consolidated = new Map<string, Asset & { consolidatedIds: string[] }>();
-  
+
   assets.forEach(asset => {
     // Symbol, type ve currency'ye göre key oluştur (symbol case-insensitive)
     const key = `${(asset.symbol || asset.name).toLowerCase()}-${asset.type}-${asset.currency || 'TRY'}`;
-    
+
     if (consolidated.has(key)) {
       const existing = consolidated.get(key)!;
       const existingQty = Number(existing.quantity);
       const newQty = Number(asset.quantity);
       const existingPrice = Number(existing.purchasePrice);
       const newPrice = Number(asset.purchasePrice);
-      
+
       // Ortalama alış fiyatı hesapla
       const weightedAvgPrice = (existingQty * existingPrice + newQty * newPrice) / (existingQty + newQty);
-      
+
       // Toplam miktar
       const totalQty = existingQty + newQty;
-      
+
       existing.quantity = totalQty as any;
       existing.purchasePrice = weightedAvgPrice as any;
       existing.consolidatedIds.push(asset.id);
@@ -92,13 +101,20 @@ function consolidateAssets(assets: Asset[]): (Asset & { consolidatedIds: string[
       });
     }
   });
-  
+
   return Array.from(consolidated.values());
 }
 
-export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, onRefreshPrices }: PortfolioTableProps) {
+type SortConfig = {
+  key: string;
+  direction: 'asc' | 'desc';
+} | null;
+
+export function PortfolioTable({ assets, transactions = [], isLoading, onEdit, onSell, onDelete, onRefreshPrices }: PortfolioTableProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
+  const [filterType, setFilterType] = useState<string>("all");
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+
   // Konsolidation yap
   const consolidatedAssets = consolidateAssets(assets);
 
@@ -111,6 +127,64 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
       setIsRefreshing(false);
     }
   };
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'desc'; // Default to desc for numbers usually
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig?.key !== key) return <ArrowUpDown className="w-4 h-4 ml-1 text-muted-foreground/50" />;
+    return sortConfig.direction === 'asc'
+      ? <ArrowUp className="w-4 h-4 ml-1 text-foreground" />
+      : <ArrowDown className="w-4 h-4 ml-1 text-foreground" />;
+  };
+
+  // Filter and Sort
+  const processedAssets = consolidatedAssets
+    .filter(asset => filterType === "all" || asset.type === filterType)
+    .sort((a, b) => {
+      if (!sortConfig) return 0;
+
+      const getAssetValue = (asset: any) => {
+        const quantity = Number(asset.quantity);
+        const purchasePrice = Number(asset.purchasePrice);
+        const currentPrice = Number(asset.currentPrice);
+        const totalValue = quantity * currentPrice;
+        const totalCost = quantity * purchasePrice;
+        const unrealizedPnL = totalValue - totalCost;
+
+        switch (sortConfig.key) {
+          case 'totalValue':
+            return totalValue;
+          case 'unrealizedPnL':
+            return unrealizedPnL;
+          case 'realizedPnL': {
+            const assetRealizedPnL = transactions
+              .filter(t => t.type === 'sell' && t.assetName === a.name && t.assetType === a.type)
+              .reduce((sum, t) => sum + Number(t.realizedPnL || 0), 0);
+            return assetRealizedPnL;
+          }
+          case 'totalPnL': {
+            const assetRealizedPnL = transactions
+              .filter(t => t.type === 'sell' && t.assetName === a.name && t.assetType === a.type)
+              .reduce((sum, t) => sum + Number(t.realizedPnL || 0), 0);
+            return unrealizedPnL + assetRealizedPnL;
+          }
+          default:
+            return 0;
+        }
+      };
+
+      const valA = getAssetValue(a);
+      const valB = getAssetValue(b);
+
+      return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+    });
+
 
   if (isLoading) {
     return (
@@ -136,7 +210,7 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
       </Card>
     );
   }
-  
+
   if (assets.length === 0) {
     return (
       <Card data-testid="table-portfolio">
@@ -157,8 +231,24 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
 
   return (
     <Card data-testid="table-portfolio">
-      <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <CardTitle className="text-lg">Portföy Detayı</CardTitle>
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <CardTitle className="text-lg">Portföy Detayı</CardTitle>
+          <Select
+            value={filterType}
+            onValueChange={setFilterType}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Varlık Tipi Filtrele" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tümü</SelectItem>
+              {Object.entries(ASSET_TYPE_LABELS).map(([key, label]) => (
+                <SelectItem key={key} value={key}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         {onRefreshPrices && (
           <Button
             size="sm"
@@ -182,37 +272,69 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
                 <TableHead className="text-right">Miktar</TableHead>
                 <TableHead className="text-right">Alış Fiyatı</TableHead>
                 <TableHead className="text-right">Güncel Fiyat</TableHead>
-                <TableHead className="text-right">Değer</TableHead>
-                <TableHead className="text-right">Kar/Zarar</TableHead>
+
+                <TableHead className="text-right cursor-pointer select-none hover:bg-muted/50" onClick={() => handleSort('totalValue')}>
+                  <div className="flex items-center justify-end">
+                    Değer
+                    {getSortIcon('totalValue')}
+                  </div>
+                </TableHead>
+
+                <TableHead className="text-right cursor-pointer select-none hover:bg-muted/50" onClick={() => handleSort('unrealizedPnL')}>
+                  <div className="flex items-center justify-end">
+                    Kar/Zarar (Potansiyel)
+                    {getSortIcon('unrealizedPnL')}
+                  </div>
+                </TableHead>
+
+                <TableHead className="text-right cursor-pointer select-none hover:bg-muted/50" onClick={() => handleSort('realizedPnL')}>
+                  <div className="flex items-center justify-end">
+                    Realize K/Z
+                    {getSortIcon('realizedPnL')}
+                  </div>
+                </TableHead>
+
+                <TableHead className="text-right cursor-pointer select-none hover:bg-muted/50" onClick={() => handleSort('totalPnL')}>
+                  <div className="flex items-center justify-end">
+                    Toplam K/Z
+                    {getSortIcon('totalPnL')}
+                  </div>
+                </TableHead>
+
                 <TableHead className="text-right">Performans</TableHead>
                 {(onEdit || onSell || onDelete) && <TableHead className="text-right">İşlemler</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {consolidatedAssets.map((asset) => {
+              {processedAssets.map((asset) => {
                 const quantity = Number(asset.quantity);
                 const purchasePrice = Number(asset.purchasePrice);
                 const currentPrice = Number(asset.currentPrice);
                 const totalValue = quantity * currentPrice;
                 const totalCost = quantity * purchasePrice;
-                const performance = totalCost > 0 
-                  ? ((totalValue - totalCost) / totalCost) * 100 
+                const performance = totalCost > 0
+                  ? ((totalValue - totalCost) / totalCost) * 100
                   : 0;
                 const isPositive = performance >= 0;
+
+                // Determine precision for unit prices based on asset type
+                const priceDecimals = (asset.type === 'fon' || asset.type === 'befas') ? 6 : 2;
 
                 return (
                   <TableRow key={asset.id} data-testid={`row-asset-${asset.id}`}>
                     <TableCell className="font-medium">
                       <div>
-                        <p className="font-medium text-foreground">{asset.name}</p>
+                        <Link href={`/islemler?asset=${encodeURIComponent(asset.name)}`} className="font-medium text-foreground hover:underline cursor-pointer">
+                          {asset.name}
+                        </Link>
                         {asset.symbol && (
                           <p className="text-xs text-muted-foreground">{asset.symbol}</p>
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge 
-                        variant="secondary" 
+                      <Badge
+                        variant="secondary"
                         className={ASSET_TYPE_COLORS[asset.type] || ""}
                       >
                         {ASSET_TYPE_LABELS[asset.type] || asset.type}
@@ -222,29 +344,61 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
                       {formatQuantity(quantity, asset.type)}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {formatCurrency(purchasePrice, asset.currency || 'TRY')}
+                      {formatCurrency(purchasePrice, asset.currency || 'TRY', priceDecimals)}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {formatCurrency(currentPrice, asset.currency || 'TRY')}
+                      {formatCurrency(currentPrice, asset.currency || 'TRY', priceDecimals)}
                     </TableCell>
                     <TableCell className="text-right font-mono font-medium">
-                      {formatCurrency(totalValue, asset.currency || 'TRY')}
+                      {formatCurrency(totalValue, asset.currency || 'TRY', 2)}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      <div className={`font-medium ${
-                        (totalValue - totalCost) >= 0 
-                          ? 'text-emerald-600 dark:text-emerald-400' 
-                          : 'text-orange-600 dark:text-orange-400'
-                      }`}>
+                      <div className={`font-medium ${(totalValue - totalCost) >= 0
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-orange-600 dark:text-orange-400'
+                        }`}>
                         {(totalValue - totalCost) >= 0 ? '+' : ''}{formatCurrency(totalValue - totalCost, asset.currency || 'TRY')}
                       </div>
                     </TableCell>
+                    {(() => {
+                      // Calculate Realized P&L for this asset (grouped by name and type)
+                      const assetRealizedPnL = transactions
+                        .filter(t =>
+                          t.type === 'sell' &&
+                          t.assetName === asset.name &&
+                          t.assetType === asset.type
+                        )
+                        .reduce((sum, t) => sum + Number(t.realizedPnL || 0), 0);
+
+                      const unrealizedPnL = totalValue - totalCost;
+                      const totalPnL = unrealizedPnL + assetRealizedPnL;
+
+                      return (
+                        <>
+                          <TableCell className="text-right font-mono">
+                            <div className={`font-medium ${assetRealizedPnL >= 0
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-orange-600 dark:text-orange-400'
+                              }`}>
+                              {assetRealizedPnL > 0 ? '+' : ''}{formatCurrency(assetRealizedPnL, asset.currency || 'TRY')}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-mono">
+                            <div className={`font-medium ${totalPnL >= 0
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-orange-600 dark:text-orange-400'
+                              }`}>
+                              {totalPnL >= 0 ? '+' : ''}{formatCurrency(totalPnL, asset.currency || 'TRY')}
+                            </div>
+                          </TableCell>
+                        </>
+                      );
+                    })()}
                     <TableCell className="text-right">
-                      <div className={`flex items-center justify-end gap-1 font-medium ${
-                        isPositive 
-                          ? 'text-emerald-600 dark:text-emerald-400' 
-                          : 'text-orange-600 dark:text-orange-400'
-                      }`}>
+                      <div className={`flex items-center justify-end gap-1 font-medium ${isPositive
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-orange-600 dark:text-orange-400'
+                        }`}>
                         {isPositive ? (
                           <TrendingUp className="w-4 h-4" />
                         ) : (
@@ -255,7 +409,7 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
                     </TableCell>
                     {(onEdit || onSell || onDelete) && (
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex flex-col items-end justify-center gap-1">
                           {onEdit && (
                             <Button
                               variant="ghost"
@@ -300,3 +454,4 @@ export function PortfolioTable({ assets, isLoading, onEdit, onSell, onDelete, on
     </Card>
   );
 }
+

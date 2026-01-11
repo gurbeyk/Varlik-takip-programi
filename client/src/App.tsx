@@ -14,6 +14,7 @@ import Home from "@/pages/home";
 import Assets from "@/pages/assets";
 import Transactions from "@/pages/transactions";
 import Reports from "@/pages/reports";
+import Analytics from "@/pages/analytics";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
@@ -81,6 +82,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/varliklar" component={Assets} />
         <Route path="/islemler" component={Transactions} />
+        <Route path="/analiz" component={Analytics} />
         <Route path="/raporlar" component={Reports} />
         <Route path="/ayarlar" component={Settings} />
         <Route component={NotFound} />

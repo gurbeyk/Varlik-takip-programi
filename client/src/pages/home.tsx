@@ -5,9 +5,10 @@ import { AssetBreakdown } from "@/components/asset-breakdown";
 import { ProfitLossSummary } from "@/components/profit-loss-summary";
 import { AssetDistributionChart } from "@/components/asset-distribution-chart";
 import { PerformanceChart } from "@/components/performance-chart";
+import { PortfolioPerformanceChart } from "@/components/portfolio-performance-chart"; // Added import
 import { PortfolioTable } from "@/components/portfolio-table";
 import { queryClient } from "@/lib/queryClient";
-import type { Asset, PerformanceSnapshot } from "@shared/schema";
+import type { Asset, PerformanceSnapshot, Transaction } from "@shared/schema";
 
 interface PortfolioSummary {
   totalAssets: number;
@@ -29,7 +30,11 @@ export default function Home() {
     queryKey: ["/api/portfolio/performance"],
   });
 
-  const isLoading = assetsLoading || summaryLoading || snapshotsLoading;
+  const { data: transactions = [], isLoading: transactionsLoading } = useQuery<Transaction[]>({
+    queryKey: ["/api/transactions"],
+  });
+
+  const isLoading = assetsLoading || summaryLoading || snapshotsLoading || transactionsLoading;
 
   // Manual price refresh function - pass to portfolio table
   const refreshPrices = async () => {
@@ -44,7 +49,7 @@ export default function Home() {
               return null;
             })
         );
-      
+
       await Promise.all(priceUpdates);
       // Refetch assets to get updated prices
       queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
@@ -74,7 +79,7 @@ export default function Home() {
 
       <AssetBreakdown assets={assets} isLoading={assetsLoading} />
 
-      <ProfitLossSummary assets={assets} isLoading={assetsLoading} />
+      <ProfitLossSummary assets={assets} transactions={transactions} isLoading={isLoading} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <AssetDistributionChart assets={assets} isLoading={assetsLoading} />

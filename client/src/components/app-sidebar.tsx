@@ -11,13 +11,14 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { 
-  LayoutDashboard, 
-  Wallet, 
-  ArrowLeftRight, 
-  FileBarChart, 
+import {
+  LayoutDashboard,
+  Wallet,
+  ArrowLeftRight,
+  FileBarChart,
   Settings,
-  LogOut
+  LogOut,
+  TrendingUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -38,9 +39,13 @@ const menuItems = [
     icon: ArrowLeftRight,
   },
   {
-    title: "Raporlar",
     url: "/raporlar",
     icon: FileBarChart,
+  },
+  {
+    title: "Gelişmiş Analiz",
+    url: "/analiz",
+    icon: TrendingUp,
   },
   {
     title: "Ayarlar",
@@ -67,7 +72,7 @@ export function AppSidebar() {
           </div>
         </Link>
       </SidebarHeader>
-      
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-muted-foreground text-xs uppercase tracking-wider px-4 py-2">
@@ -79,8 +84,8 @@ export function AppSidebar() {
                 const isActive = location === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild 
+                    <SidebarMenuButton
+                      asChild
                       isActive={isActive}
                       className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
                     >

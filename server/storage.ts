@@ -22,22 +22,25 @@ export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
-  
+
   // Asset operations
   getAssets(userId: string): Promise<Asset[]>;
   getAsset(id: string): Promise<Asset | undefined>;
   createAsset(userId: string, asset: InsertAsset): Promise<Asset>;
   updateAsset(id: string, asset: Partial<InsertAsset>): Promise<Asset | undefined>;
   deleteAsset(id: string): Promise<boolean>;
-  
+
   // Transaction operations
   getTransactions(userId: string): Promise<Transaction[]>;
   createTransaction(userId: string, transaction: InsertTransaction): Promise<Transaction>;
-  
+  deleteTransaction(id: string): Promise<boolean>;
+  updateTransaction(id: string, transaction: Partial<InsertTransaction>): Promise<Transaction | undefined>;
+  deleteAllTransactions(userId: string): Promise<void>;
+
   // Performance snapshot operations
   getPerformanceSnapshots(userId: string): Promise<PerformanceSnapshot[]>;
   createOrUpdatePerformanceSnapshot(userId: string, month: string, totalAssets: number, totalDebt: number, netWorth: number): Promise<PerformanceSnapshot>;
-  
+
   // US Stocks operations
   searchUSStocks(query: string): Promise<USStock[]>;
   seedUSStocks(): Promise<void>;
@@ -121,6 +124,27 @@ export class DatabaseStorage implements IStorage {
     return transaction;
   }
 
+  async deleteTransaction(id: string): Promise<boolean> {
+    const result = await db.delete(transactions).where(eq(transactions.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async updateTransaction(id: string, transactionData: Partial<InsertTransaction>): Promise<Transaction | undefined> {
+    const [transaction] = await db
+      .update(transactions)
+      .set(transactionData)
+      .where(eq(transactions.id, id))
+      .returning();
+    return transaction || undefined;
+  }
+
+  async deleteAllTransactions(userId: string): Promise<void> {
+    // Delete all data related to the user's portfolio
+    await db.delete(transactions).where(eq(transactions.userId, userId));
+    await db.delete(assets).where(eq(assets.userId, userId));
+    await db.delete(performanceSnapshots).where(eq(performanceSnapshots.userId, userId));
+  }
+
   // Performance snapshot operations
   async getPerformanceSnapshots(userId: string): Promise<PerformanceSnapshot[]> {
     return await db
@@ -131,10 +155,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOrUpdatePerformanceSnapshot(
-    userId: string, 
-    month: string, 
-    totalAssets: number, 
-    totalDebt: number, 
+    userId: string,
+    month: string,
+    totalAssets: number,
+    totalDebt: number,
     netWorth: number
   ): Promise<PerformanceSnapshot> {
     // Check if snapshot exists for this month

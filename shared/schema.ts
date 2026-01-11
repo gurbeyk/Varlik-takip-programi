@@ -65,7 +65,7 @@ export const bistStocks = pgTable(
 export type BISTStock = typeof bistStocks.$inferSelect;
 
 // Asset types enum
-export const assetTypes = ['hisse', 'abd-hisse', 'etf', 'kripto', 'gayrimenkul', 'fon'] as const;
+export const assetTypes = ['hisse', 'abd-hisse', 'etf', 'kripto', 'gayrimenkul', 'fon', 'befas'] as const;
 export type AssetType = typeof assetTypes[number];
 
 // Asset type labels
@@ -76,6 +76,7 @@ export const assetTypeLabels: Record<AssetType, string> = {
   'kripto': 'Kripto Para',
   'gayrimenkul': 'Gayrimenkul',
   'fon': 'TEFAS Fonu',
+  'befas': 'BEFAS (Emeklilik) Fonu',
 };
 
 // Assets table for portfolio tracking
@@ -86,8 +87,8 @@ export const assets = pgTable("assets", {
   type: varchar("type", { length: 50 }).notNull(), // hisse, abd-hisse, etf, kripto, gayrimenkul
   symbol: varchar("symbol", { length: 50 }),
   quantity: decimal("quantity", { precision: 18, scale: 8 }).notNull(),
-  purchasePrice: decimal("purchase_price", { precision: 18, scale: 2 }).notNull(),
-  currentPrice: decimal("current_price", { precision: 18, scale: 2 }).notNull(),
+  purchasePrice: decimal("purchase_price", { precision: 18, scale: 8 }).notNull(),
+  currentPrice: decimal("current_price", { precision: 18, scale: 8 }).notNull(),
   currency: varchar("currency", { length: 10 }).default('TRY'),
   purchaseDate: timestamp("purchase_date"),
   notes: text("notes"),
@@ -134,7 +135,13 @@ export const transactions = pgTable("transactions", {
 export const insertTransactionSchema = createInsertSchema(transactions).omit({
   id: true,
   userId: true,
-  createdAt: true,
+}).extend({
+  createdAt: z.union([
+    z.date(),
+    z.string().transform((val) => val ? new Date(val) : undefined).nullable(),
+    z.null(),
+    z.undefined()
+  ]).optional(),
 });
 
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
