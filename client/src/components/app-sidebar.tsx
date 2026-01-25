@@ -18,7 +18,9 @@ import {
   FileBarChart,
   Settings,
   LogOut,
-  TrendingUp
+  TrendingUp,
+  Tags,
+  PieChart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -27,6 +29,11 @@ const menuItems = [
     title: "Portföy Özeti",
     url: "/",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Hesaplar",
+    url: "/hesaplar",
+    icon: Wallet,
   },
   {
     title: "Varlık Detayı",
@@ -39,13 +46,24 @@ const menuItems = [
     icon: ArrowLeftRight,
   },
   {
-    url: "/raporlar",
+    title: "Gelir-Gider Raporu",
+    url: "/raporlar/gelir-gider",
     icon: FileBarChart,
   },
   {
     title: "Gelişmiş Analiz",
     url: "/analiz",
     icon: TrendingUp,
+  },
+  {
+    title: "Bütçe",
+    url: "/butce",
+    icon: PieChart,
+  },
+  {
+    title: "Kategoriler",
+    url: "/kategoriler",
+    icon: Tags,
   },
   {
     title: "Ayarlar",

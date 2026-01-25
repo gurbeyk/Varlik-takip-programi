@@ -18,64 +18,62 @@ def fetch_history(symbol, asset_type, start_date_str):
         # 1. TEFAS Funds
         if asset_type in ['fon', 'befas']:
             import os
-            import contextlib
             from datetime import timedelta
             
-            with open(os.devnull, 'w') as devnull:
-                with contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull):
-                    Crawler.root_url = "https://www.tefas.gov.tr"
-                    Crawler.headers["Origin"] = "https://www.tefas.gov.tr"
-                    Crawler.headers["Referer"] = "https://www.tefas.gov.tr/TarihselVeriler.aspx"
-                    
-                    tefas = Crawler()
-                    
-                    # Parse start date
-                    try:
-                        s_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-                    except:
-                        # Fallback or error
-                        s_date = datetime.now() - timedelta(days=30)
+            # Note: stdout redirection removed from here to avoid threading race conditions
+            
+            Crawler.root_url = "https://www.tefas.gov.tr"
+            Crawler.headers["Origin"] = "https://www.tefas.gov.tr"
+            Crawler.headers["Referer"] = "https://www.tefas.gov.tr/TarihselVeriler.aspx"
+            
+            tefas = Crawler()
+            
+            # Parse start date
+            try:
+                s_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+            except:
+                s_date = datetime.now() - timedelta(days=30)
 
-                    end_date = datetime.now()
+            end_date = datetime.now()
+            
+            # Chunking Loop (90 days chunks)
+            current_start = s_date
+            
+            param_kind = "EMK" if asset_type == 'befas' else "YAT"
+            
+            while current_start < end_date:
+                # Calculate chunk end
+                chunk_end = current_start + timedelta(days=90)
+                if chunk_end > end_date:
+                    chunk_end = end_date
                     
-                    # Chunking Loop (90 days chunks)
-                    current_start = s_date
+                c_start_str = current_start.strftime("%Y-%m-%d")
+                c_end_str = chunk_end.strftime("%Y-%m-%d")
+                
+                try:
+                    # Fetch chunk
+                    data = tefas.fetch(start=c_start_str, end=c_end_str, name=symbol.upper(), kind=param_kind)
                     
-                    param_kind = "EMK" if asset_type == 'befas' else "YAT"
-                    
-                    while current_start < end_date:
-                        # Calculate chunk end
-                        chunk_end = current_start + timedelta(days=90)
-                        if chunk_end > end_date:
-                            chunk_end = end_date
-                            
-                        c_start_str = current_start.strftime("%Y-%m-%d")
-                        c_end_str = chunk_end.strftime("%Y-%m-%d")
+                    if not data.empty:
+                        # Normalize column names
+                        data.columns = [c.lower() for c in data.columns]
                         
-                        try:
-                            # Fetch chunk
-                            data = tefas.fetch(start=c_start_str, end=c_end_str, name=symbol.upper(), kind=param_kind)
-                            
-                            if not data.empty:
-                                # Normalize column names
-                                data.columns = [c.lower() for c in data.columns]
+                        for _, row in data.iterrows():
+                            d_val = row['date']
+                            if hasattr(d_val, 'strftime'):
+                                d_str = d_val.strftime("%Y-%m-%d")
+                            else:
+                                d_str = str(d_val) 
                                 
-                                for _, row in data.iterrows():
-                                    d_val = row['date']
-                                    if hasattr(d_val, 'strftime'):
-                                        d_str = d_val.strftime("%Y-%m-%d")
-                                    else:
-                                        d_str = str(d_val) 
-                                        
-                                    results.append({
-                                        "date": d_str,
-                                        "price": float(row['price'])
-                                    })
-                        except Exception as chunk_err:
-                            sys.stderr.write(f"Chunk failed {c_start_str}-{c_end_str}: {chunk_err}\n")
-                        
-                        # Move to next chunk
-                        current_start = chunk_end + timedelta(days=1)
+                            results.append({
+                                "date": d_str,
+                                "price": float(row['price'])
+                            })
+                except Exception as chunk_err:
+                    sys.stderr.write(f"Chunk failed {c_start_str}-{c_end_str}: {chunk_err}\n")
+                
+                # Move to next chunk
+                current_start = chunk_end + timedelta(days=1)
             
             return results
 
@@ -89,13 +87,7 @@ def fetch_history(symbol, asset_type, start_date_str):
                 formatted_symbol += '-USD'
             
             # Fetch
-            # Suppress yfinance output
-            import os
-            import contextlib
-            
-            with open(os.devnull, 'w') as devnull:
-                with contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull):
-                     data = yf.download(formatted_symbol, start=start_date_str, progress=False, multi_level_index=False)
+            data = yf.download(formatted_symbol, start=start_date_str, progress=False, multi_level_index=False)
             
             if not data.empty:
                 for date, row in data.iterrows():
@@ -106,12 +98,12 @@ def fetch_history(symbol, asset_type, start_date_str):
             return results
 
     except Exception as e:
-        # Return empty list or partial results on error
         sys.stderr.write(f"Error: {e}\n")
         return []
 
 if __name__ == "__main__":
     import sys
+    import os
     
     # Check if input is a JSON list (starts with [)
     input_arg = "[]"
@@ -122,7 +114,14 @@ if __name__ == "__main__":
         if not sys.stdin.isatty():
             input_arg = sys.stdin.read()
 
+    # Save original stdout
+    original_stdout = sys.stdout
+    
     try:
+        # Redirect stdout to devnull to suppress library noise during processing
+        # This is process-global and safe for threads (they all write to devnull)
+        sys.stdout = open(os.devnull, 'w')
+
         # Try processing as batch JSON
         if input_arg.strip().startswith('['):
             requests = json.loads(input_arg)
@@ -146,6 +145,8 @@ if __name__ == "__main__":
                     if sym:
                         batch_results[sym] = data
             
+            # Restore stdout for final output
+            sys.stdout = original_stdout
             print(json.dumps(batch_results))
             
         else:
@@ -155,11 +156,16 @@ if __name__ == "__main__":
                 asset_type = sys.argv[2]
                 start_date = sys.argv[3]
                 hist = fetch_history(symbol, asset_type, start_date)
+                
+                sys.stdout = original_stdout
                 print(json.dumps(hist))
             else:
+                sys.stdout = original_stdout
                 print(json.dumps([]))
                 
     except Exception as e:
+        sys.stdout = original_stdout
         # Ensure we always output valid JSON even on major failure
         sys.stderr.write(f"Critical Error: {e}\n")
         print(json.dumps({}))
+

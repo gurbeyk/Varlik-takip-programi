@@ -60,6 +60,7 @@ const assetFormSchema = z.object({
   ),
   currentPrice: z.string().optional(),
   purchaseDate: z.string().optional(),
+  platform: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -82,6 +83,20 @@ const ASSET_TYPES = [
   { value: "fon", label: "TEFAS Fonu", currency: "TRY" },
   { value: "befas", label: "BEFAS (Emeklilik) Fonu", currency: "TRY" },
   { value: "gayrimenkul", label: "Gayrimenkul", currency: "TRY" },
+];
+
+const PLATFORMS = [
+  "Midas",
+  "Akbank",
+  "Phillip Capital",
+  "QNB Finansbank",
+  "Garanti BBVA",
+  "İş Bankası",
+  "Yapı Kredi",
+  "Ziraat",
+  "Binance",
+  "Btcturk",
+  "Diğer"
 ];
 
 // Crypto symbol to name mapping
@@ -149,6 +164,7 @@ export function AssetForm({
         ? new Date(defaultValues.purchaseDate).toISOString().split('T')[0]
         : "",
       notes: defaultValues?.notes || "",
+      platform: defaultValues?.platform || undefined,
     },
   });
 
@@ -287,6 +303,31 @@ export function AssetForm({
                       {ASSET_TYPES.map((type) => (
                         <SelectItem key={type.value} value={type.value}>
                           {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="platform"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Yatırım Platformu (Opsiyonel)</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Platform seçiniz" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {PLATFORMS.map((platform) => (
+                        <SelectItem key={platform} value={platform}>
+                          {platform}
                         </SelectItem>
                       ))}
                     </SelectContent>

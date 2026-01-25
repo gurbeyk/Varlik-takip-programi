@@ -66,18 +66,12 @@ export function AssetBreakdown({ assets, isLoading }: AssetBreakdownProps) {
     "Kripto": "USD",
     "Gayrimenkul": "TRY",
     "TEFAS Fon": "TRY",
+    "BEFAS Fon": "TRY",
   };
 
-  // Calculate breakdown by asset type
+  // Calculate breakdown by asset type and platform
   const calculateBreakdown = () => {
-    const types: Record<string, number> = {
-      "BIST Hisse": 0,
-      "ABD Hisse": 0,
-      "ETF": 0,
-      "Kripto": 0,
-      "Gayrimenkul": 0,
-      "TEFAS Fon": 0,
-    };
+    const types: Record<string, { total: number, platforms: Record<string, number> }> = {};
 
     assets.forEach((asset) => {
       const quantity = Number(asset.quantity);
@@ -91,9 +85,16 @@ export function AssetBreakdown({ assets, isLoading }: AssetBreakdownProps) {
       else if (asset.type === "kripto") typeKey = "Kripto";
       else if (asset.type === "gayrimenkul") typeKey = "Gayrimenkul";
       else if (asset.type === "fon") typeKey = "TEFAS Fon";
+      else if (asset.type === "befas") typeKey = "BEFAS Fon";
 
-      if (typeKey && types.hasOwnProperty(typeKey)) {
-        types[typeKey] += value;
+      const platformKey = asset.platform || "Diğer";
+
+      if (typeKey) {
+        if (!types[typeKey]) {
+          types[typeKey] = { total: 0, platforms: {} };
+        }
+        types[typeKey].total += value;
+        types[typeKey].platforms[platformKey] = (types[typeKey].platforms[platformKey] || 0) + value;
       }
     });
 
@@ -101,16 +102,16 @@ export function AssetBreakdown({ assets, isLoading }: AssetBreakdownProps) {
   };
 
   const breakdown = calculateBreakdown();
-  const breakdownEntries = Object.entries(breakdown).filter(([_, value]) => value > 0);
+  const breakdownEntries = Object.entries(breakdown).filter(([_, data]) => data.total > 0);
 
   // Calculate total in TRY
   let totalTRY = 0;
-  Object.entries(breakdown).forEach(([type, value]) => {
-    const currency = primaryCurrency[type];
+  Object.entries(breakdown).forEach(([type, data]) => {
+    const currency = primaryCurrency[type] || 'TRY';
     if (currency === 'TRY') {
-      totalTRY += value;
+      totalTRY += data.total;
     } else {
-      totalTRY += value * exchangeRate;
+      totalTRY += data.total * exchangeRate;
     }
   });
 
@@ -127,7 +128,7 @@ export function AssetBreakdown({ assets, isLoading }: AssetBreakdownProps) {
         <div>
           <CardTitle className="text-lg">Toplam Varlık Detayı</CardTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            Varlık tiplerine göre dağılım
+            Varlık tiplerine ve platformlara göre dağılım
           </p>
         </div>
         <Button
@@ -149,18 +150,39 @@ export function AssetBreakdown({ assets, isLoading }: AssetBreakdownProps) {
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          {breakdownEntries.map(([type, value]) => {
-            const currency = primaryCurrency[type];
+        <div className="space-y-4">
+          {breakdownEntries.map(([type, data]) => {
+            const currency = primaryCurrency[type] || 'TRY';
+            // Only show platforms if there are more than 1 or if the single one is named (not 'Diğer' implies specific info)
+            // Actually user wants to see it. Let's show always if keys exist.
+            const platformEntries = Object.entries(data.platforms).sort((a, b) => b[1] - a[1]);
+
             return (
-              <div key={type} className="flex justify-between items-center p-3 border rounded-lg hover-elevate">
-                <div className="flex flex-col">
-                  <span className="font-medium text-foreground">{type}</span>
-                  <span className="text-xs text-muted-foreground">{currency}</span>
+              <div key={type} className="border rounded-lg overflow-hidden">
+                <div className="flex justify-between items-center p-3 bg-muted/30">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-foreground">{type}</span>
+                    <span className="text-xs text-muted-foreground">{currency}</span>
+                  </div>
+                  <span className="font-mono font-medium text-foreground">
+                    {formatCurrency(data.total, currency)}
+                  </span>
                 </div>
-                <span className="font-mono font-medium text-foreground">
-                  {formatCurrency(value, currency)}
-                </span>
+
+                {/* Platform Breakdown */}
+                <div className="bg-background px-3 py-1">
+                  {platformEntries.map(([platform, pValue]) => (
+                    <div key={platform} className="flex justify-between items-center py-2 border-t first:border-0 border-muted/20">
+                      <div className="flex items-center gap-2 pl-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                        <span className="text-sm text-muted-foreground">{platform}</span>
+                      </div>
+                      <span className="text-sm font-mono text-muted-foreground">
+                        {formatCurrency(pValue, currency)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           })}

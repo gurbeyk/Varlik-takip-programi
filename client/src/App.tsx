@@ -15,7 +15,12 @@ import Assets from "@/pages/assets";
 import Transactions from "@/pages/transactions";
 import Reports from "@/pages/reports";
 import Analytics from "@/pages/analytics";
+import Accounts from "@/pages/accounts";
+import AccountDetail from "@/pages/account-detail";
 import Settings from "@/pages/settings";
+import Categories from "@/pages/categories";
+import IncomeExpenseReport from "@/pages/income-expense-report";
+import Budgets from "@/pages/budgets";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -81,9 +86,14 @@ function Router() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/varliklar" component={Assets} />
+        <Route path="/hesaplar/:id" component={AccountDetail} />
+        <Route path="/hesaplar" component={Accounts} />
         <Route path="/islemler" component={Transactions} />
         <Route path="/analiz" component={Analytics} />
+        <Route path="/raporlar/gelir-gider" component={IncomeExpenseReport} />
         <Route path="/raporlar" component={Reports} />
+        <Route path="/butce" component={Budgets} />
+        <Route path="/kategoriler" component={Categories} />
         <Route path="/ayarlar" component={Settings} />
         <Route component={NotFound} />
       </Switch>

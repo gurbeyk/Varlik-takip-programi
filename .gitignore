@@ -4,3 +4,14 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+.env
+sqlite.db
+transactions.json
+txs.json
+assets.json
+reproduce_consolidation.ts
+server/apply_symbol_fix.ts
+server/check_missing_symbols.ts
+server/migrate_symbols.ts
+server/seed-categories.ts
+server/fetch-asset-history.py

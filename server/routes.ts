@@ -3,12 +3,12 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertAssetSchema, type Asset, type Transaction } from "@shared/schema";
+import { insertAssetSchema, type Asset, type Transaction, insertAccountSchema, insertCategorySchema, insertCashTransactionSchema, insertBudgetSchema } from "@shared/schema";
 import { z } from "zod";
 import { exec, execSync } from "child_process";
 import * as util from "util";
 import * as path from "path";
-import { calculateXIRR, getBenchmarkReturn, calculatePeriodReturn } from "./analytics";
+import { calculateXIRR, getBenchmarkReturn, calculatePeriodReturn, calculatePortfolioMonthlyChange } from "./analytics";
 import { subMonths, subYears, isBefore, isAfter, parseISO } from "date-fns";
 
 const execAsync = util.promisify(exec);
@@ -47,21 +47,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const netWorth = totalAssets - totalDebt;
 
-      // Calculate monthly change
-      let monthlyChange = 0;
-      if (snapshots.length >= 2) {
-        const lastMonth = snapshots[snapshots.length - 1];
-        const prevMonth = snapshots[snapshots.length - 2];
-        const lastValue = Number(lastMonth.netWorth);
-        const prevValue = Number(prevMonth.netWorth);
-        if (prevValue > 0) {
-          monthlyChange = ((lastValue - prevValue) / prevValue) * 100;
-        }
-      }
+      // Calculate monthly change using the robust Net Flow method
+      const transactions = await storage.getTransactions(userId);
+      const monthlyChangeResult = await calculatePortfolioMonthlyChange(assets, transactions);
+      const monthlyChange = monthlyChangeResult.total.percentage;
+      const monthlyChangeAmount = monthlyChangeResult.total.amount;
+      const monthlyChangeBreakdown = monthlyChangeResult.breakdown;
 
-      // Update current month snapshot
+      // Update current month snapshot (Keep this for historical tracking if needed, or maybe we don't need it as much now?)
+      // Let's keep it for the chart history.
       const now = new Date();
-      const currentMonth = `${now.getFullYear()} -${String(now.getMonth() + 1).padStart(2, '0')} `;
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       await storage.createOrUpdatePerformanceSnapshot(userId, currentMonth, totalAssets, totalDebt, netWorth);
 
       res.json({
@@ -69,6 +65,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         totalDebt,
         netWorth,
         monthlyChange,
+        monthlyChangeAmount,
+        monthlyChangeBreakdown
       });
     } catch (error) {
       console.error("Error fetching portfolio summary:", error);
@@ -172,7 +170,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         const sameSymbol = validatedData.symbol
           ? (a.symbol?.toUpperCase() === validatedData.symbol.toUpperCase())
           : (!a.symbol && a.name === validatedData.name);
-        return sameType && sameSymbol;
+        // Platform check: treat null/undefined/empty string as equivalent 'unknown' for relaxed matching, 
+        // OR strict matching. Given the user wants separation, strict matching is better.
+        // If existing is 'Midas' and new is undefined, do we merge? No, separate.
+        // If existing is null and new is 'Midas', separate.
+        // If both null, merge.
+        const existingPlatform = a.platform || '';
+        const newPlatform = validatedData.platform || '';
+        const samePlatform = existingPlatform === newPlatform;
+
+        return sameType && sameSymbol && samePlatform;
       });
 
       let finalAsset;
@@ -572,7 +579,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             console.log(`TEFAS error for ${symbol}: `, data.error);
           }
         } catch (e) {
-          console.error(`TEFAS price fetch failed for ${symbol}: `, e.message);
+          console.error(`TEFAS price fetch failed for ${symbol}: `, (e as Error).message);
         }
       } else if (type === 'befas') {
         // BEFAS funds: use Python script with tefas-crawler library (kind=EMK)
@@ -586,7 +593,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             console.log(`BEFAS error for ${symbol}: `, data.error);
           }
         } catch (e) {
-          console.error(`BEFAS price fetch failed for ${symbol}: `, e.message);
+          console.error(`BEFAS price fetch failed for ${symbol}: `, (e as Error).message);
         }
       } else if (type === 'abd-hisse' || type === 'etf') {
         // US stocks and ETFs: use Python yfinance to get price
@@ -847,15 +854,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // 1. Fetch matching assets
       const allAssets = await storage.getAssets(userId);
+      // Let's just fix the block cleanly.
+      console.log(`[SELL-FIFO-DEBUG] Request: name='${name}', type='${type}', symbol='${symbol}'`);
+
       const matchingAssets = allAssets.filter(asset => {
         const sameType = asset.type === type;
-        const sameSymbol = symbol
-          ? (asset.symbol?.toUpperCase() === symbol.toUpperCase())
-          : (!asset.symbol && asset.name === name);
-        return sameType && sameSymbol;
+
+        // Strict Symbol Match if provided
+        if (symbol) {
+          return sameType && asset.symbol?.toUpperCase() === symbol.toUpperCase();
+        }
+
+        // Fallback: Name Match (Relaxed: allow matching assets with symbol if names match exactly)
+        // Previous logic (!asset.symbol) prevented matching assets that had symbols if request lacked it.
+        return sameType && asset.name === name;
       });
 
       if (matchingAssets.length === 0) {
+        console.log(`[SELL-FIFO-DEBUG] No matching assets found for '${name}'`);
         return res.status(404).json({ message: "Varlık bulunamadı." });
       }
 
@@ -917,10 +933,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // 5. Create Transaction Record
       await storage.createTransaction(userId, {
-        assetId: survivorAsset.id,  // might be deleted but we keep ID ref usually or null. logic allows set null.
+        assetId: survivorAsset.id,
         type: 'sell',
         assetName: name,
         assetType: type,
+        symbol: symbol || survivorAsset.symbol, // Ensure symbol is passed
         quantity: qtyToSell.toString(),
         price: sellPrice.toString(),
         totalAmount: revenue.toString(),
@@ -1151,6 +1168,218 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         message: "Veriler yüklenirken bir hata oluştu",
         details: error instanceof Error ? error.message : "Bilinmeyen hata"
       });
+    }
+  });
+
+  // Account Routes
+  app.get('/api/accounts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const accounts = await storage.getAccounts(userId);
+      res.json(accounts);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch accounts" });
+    }
+  });
+
+  app.post('/api/accounts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertAccountSchema.parse(req.body);
+      const account = await storage.createAccount(userId, data);
+      res.status(201).json(account);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create account" });
+    }
+  });
+
+  app.get('/api/accounts/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const account = await storage.getAccount(req.params.id);
+      if (!account || account.userId !== userId) {
+        return res.status(404).json({ message: "Account not found" });
+      }
+      res.json(account);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch account" });
+    }
+  });
+
+  app.delete('/api/accounts/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      // Check ownership
+      const account = await storage.getAccount(req.params.id);
+      if (!account || account.userId !== userId) {
+        return res.status(403).send();
+      }
+      await storage.deleteAccount(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete account" });
+    }
+  });
+
+  // Category Routes
+  app.get('/api/categories', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const categories = await storage.getCategories(userId);
+      res.json(categories);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch categories" });
+    }
+  });
+
+  app.post('/api/categories', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertCategorySchema.parse(req.body);
+      const category = await storage.createCategory(userId, data);
+      res.status(201).json(category);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create category" });
+    }
+  });
+
+  app.delete('/api/categories/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      // Check ownership (simple check via getCategories filter or direct check if implemented)
+      // Optimization: assuming deleteCategory checks or just tries. Storage delete uses ID.
+      // Robust: fetch first.
+      const categories = await storage.getCategories(userId);
+      const exists = categories.find(c => c.id === req.params.id);
+      if (!exists) return res.status(404).send();
+
+      await storage.deleteCategory(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete category" });
+    }
+  });
+
+  // Cash Transaction Routes
+  app.get('/api/cash-transactions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const txs = await storage.getCashTransactions(userId);
+      res.json(txs);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch cash transactions" });
+    }
+  });
+
+  app.post('/api/cash-transactions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertCashTransactionSchema.parse(req.body);
+
+      // If transfer, validate secondary account
+      if (data.type === 'transfer' && !data.toAccountId) {
+        return res.status(400).json({ message: "Destination account required for transfer" });
+      }
+
+      const tx = await storage.createCashTransaction(userId, data);
+      res.status(201).json(tx);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create cash transaction" });
+    }
+  });
+
+  app.delete('/api/cash-transactions/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      // Check ownership
+      const txs = await storage.getCashTransactions(userId);
+      const exists = txs.find(t => t.id === req.params.id);
+      if (!exists) return res.status(403).send();
+
+      await storage.deleteCashTransaction(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete cash transaction" });
+    }
+  });
+
+  app.patch('/api/cash-transactions/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      // Check ownership
+      const txs = await storage.getCashTransactions(userId);
+      const exists = txs.find(t => t.id === req.params.id);
+      if (!exists) return res.status(403).send();
+
+      const data = insertCashTransactionSchema.partial().parse(req.body);
+      const updated = await storage.updateCashTransaction(req.params.id, data);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update cash transaction" });
+    }
+  });
+
+  // Budget Routes
+  app.get('/api/budgets', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const budgets = await storage.getBudgets(userId);
+      res.json(budgets);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch budgets" });
+    }
+  });
+
+  app.post('/api/budgets', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertBudgetSchema.parse(req.body);
+      const budget = await storage.createBudget(userId, data);
+      res.status(201).json(budget);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create budget" });
+    }
+  });
+
+  app.delete('/api/budgets/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      // Check ownership
+      const budgets = await storage.getBudgets(userId);
+      const exists = budgets.find(b => b.id === req.params.id);
+      if (!exists) return res.status(403).send();
+
+      await storage.deleteBudget(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete budget" });
+    }
+  });
+
+  app.patch('/api/budgets/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const budgets = await storage.getBudgets(userId);
+      const exists = budgets.find(b => b.id === req.params.id);
+      if (!exists) return res.status(403).send();
+
+      const data = insertBudgetSchema.partial().parse(req.body);
+      const updated = await storage.updateBudget(req.params.id, data);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update budget" });
     }
   });
 

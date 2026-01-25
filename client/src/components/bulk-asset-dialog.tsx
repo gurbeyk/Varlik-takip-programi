@@ -40,6 +40,7 @@ interface ParsedRow {
     quantity: number;
     price: number;
     currency: string;
+    platform?: string;
     status: 'pending' | 'verified' | 'success' | 'error';
     error?: string;
     originalRowArg?: string;
@@ -141,6 +142,9 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                 price = parseFloat(priceStr) || 0;
             }
 
+            // 8. Platform
+            const platform = cols[7]?.trim();
+
             parsed.push({
                 purchaseDate: date,
                 type,
@@ -151,6 +155,7 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                 quantity,
                 price,
                 currency: (type === 'hisse' || type === 'fon' || type === 'befas' || type === 'gayrimenkul') ? 'TRY' : 'USD',
+                platform,
                 status: 'pending',
             });
         });
@@ -182,7 +187,9 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                     // Simulate Buy: Consolidate assets with Weighted Average
                     // 1. Identify existing assets
                     const existingAssets = workingAssets.filter(a =>
-                        (a.symbol?.toLowerCase() === row.symbol.toLowerCase()) && (a.type === row.type)
+                        (a.symbol?.toLowerCase() === row.symbol.toLowerCase()) &&
+                        (a.type === row.type) &&
+                        (a.platform === row.platform || (!a.platform && !row.platform))
                     );
 
                     // 2. Calculate existing totals
@@ -213,6 +220,7 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                         purchasePrice: newAvgPrice.toString(),
                         currentPrice: row.price.toString(), // Assume current price updates to latest buy price
                         currency: row.currency,
+                        platform: row.platform || null,
                         purchaseDate: row.purchaseDate ? new Date(row.purchaseDate) : null,
                         notes: "Toplu ekleme (Alış - Simülasyon)",
                         createdAt: new Date(),
@@ -221,7 +229,9 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
 
                     // 5. Update workingAssets: Remove old fragments, add new merged one
                     workingAssets = workingAssets.filter(a =>
-                        !((a.symbol?.toLowerCase() === row.symbol.toLowerCase()) && (a.type === row.type))
+                        !((a.symbol?.toLowerCase() === row.symbol.toLowerCase()) &&
+                            (a.type === row.type) &&
+                            (a.platform === row.platform || (!a.platform && !row.platform)))
                     );
                     workingAssets.push(mockAsset);
 
@@ -230,7 +240,8 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                     // Simulate Sell (FIFO)
                     const candidates = workingAssets.filter(a =>
                         (a.symbol?.toLowerCase() === row.symbol.toLowerCase()) &&
-                        (a.type === row.type)
+                        (a.type === row.type) &&
+                        (a.platform === row.platform || (!a.platform && !row.platform))
                     );
 
                     candidates.sort((a, b) => {
@@ -299,6 +310,7 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                 purchasePrice: row.price.toString(),
                 currentPrice: row.price.toString(),
                 currency: row.currency,
+                platform: row.platform,
                 purchaseDate: row.purchaseDate ? new Date(row.purchaseDate).toISOString() : null,
                 notes: "Toplu ekleme (Alış)",
             };
@@ -334,6 +346,9 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
         for (let i = 0; i < newParsedData.length; i++) {
             const row = newParsedData[i];
 
+            // Skip already processed rows to avoid duplicates
+            if (row.status === 'success') continue;
+
             try {
                 if (row.transactionType === 'buy') {
                     const res = await createMutation.mutateAsync(row);
@@ -344,7 +359,9 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                     // because they no longer exist in the backend (deleted).
                     // If we don't, subsequent SELLS in this loop will try to use old IDs and fail with 404.
                     workingAssets = workingAssets.filter(a =>
-                        !((a.symbol?.toLowerCase() === row.symbol.toLowerCase()) && (a.type === row.type))
+                        !((a.symbol?.toLowerCase() === row.symbol.toLowerCase()) &&
+                            (a.type === row.type) &&
+                            (a.platform === row.platform || (!a.platform && !row.platform)))
                     );
 
                     workingAssets.push(newAsset);
@@ -354,10 +371,11 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                 } else {
                     // SELL LOGIC (FIFO)
                     // Filter eligible assets
-                    // Match Symbol AND Type (case insensitive)
+                    // Match Symbol AND Type AND Platform (case insensitive)
                     let candidates = workingAssets.filter(a =>
                         (a.symbol?.toLowerCase() === row.symbol.toLowerCase()) &&
-                        (a.type === row.type)
+                        (a.type === row.type) &&
+                        (a.platform === row.platform || (!a.platform && !row.platform))
                     );
 
                     // Sort by purchase date (oldest first)
@@ -404,7 +422,9 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
             } catch (e: any) {
                 console.error(`Row ${i} failed`, e);
                 newParsedData[i].status = 'error';
-                newParsedData[i].error = e.message || "Kayıt başarısız";
+                // Try to extract readable error from API response
+                const errorMsg = e.message || "Kayıt başarısız";
+                newParsedData[i].error = errorMsg.includes("unexpected") ? "Beklenmeyen hata" : errorMsg;
             }
             setParsedData([...newParsedData]);
         }
@@ -446,7 +466,7 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                     <DialogDescription>
                         Excel veya Google Sheets'ten verilerinizi kopyalayıp buraya yapıştırın.
                         <br />
-                        Format: <strong>Tarih | Varlık Tipi | Sembol | Varlık Adı | İşlem (Alis/Satis) | Miktar | Fiyat</strong>
+                        Format: <strong>Tarih | Varlık Tipi | Sembol | Varlık Adı | İşlem | Miktar | Fiyat | Platform</strong>
                     </DialogDescription>
                 </DialogHeader>
 
@@ -454,8 +474,8 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                     <div className="space-y-4">
                         <Textarea
                             placeholder={`Örnek:
-6.02.2025\tBIST Hisse Senedi\tGARAN\tTurkiye Garanti Bankasi\tAlis\t10\t125
-13.12.2025 14:30\tBIST Hisse Senedi\tGARAN\tTurkiye Garanti Bankasi\tSatis\t5\t130`}
+6.02.2025\tBIST Hisse Senedi\tGARAN\tTurkiye Garanti Bankasi\tAlis\t10\t125\tMidas
+13.12.2025 14:30\tBIST Hisse Senedi\tGARAN\tTurkiye Garanti Bankasi\tSatis\t5\t130\tMidas`}
                             className="min-h-[300px] font-mono text-sm"
                             value={inputData}
                             onChange={(e) => setInputData(e.target.value)}
@@ -477,6 +497,7 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                                         <TableHead>İşlem</TableHead>
                                         <TableHead className="text-right">Miktar</TableHead>
                                         <TableHead className="text-right">Fiyat</TableHead>
+                                        <TableHead>Platform</TableHead>
                                         <TableHead>Mesaj</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -500,6 +521,7 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                                             </TableCell>
                                             <TableCell className="text-right">{row.quantity}</TableCell>
                                             <TableCell className="text-right">{row.price}</TableCell>
+                                            <TableCell className="text-xs">{row.platform || '-'}</TableCell>
                                             <TableCell className="text-xs text-red-500">{row.error}</TableCell>
                                         </TableRow>
                                     ))}
@@ -517,6 +539,15 @@ export function BulkAssetDialog({ open, onOpenChange, assets }: BulkAssetDialogP
                     ) : (
                         <div className="flex gap-2">
                             <Button variant="outline" onClick={() => {
+                                // Filter out successful rows when going back
+                                const remainingRows = parsedData.filter(r => r.status !== 'success');
+                                const text = remainingRows.map(r => {
+                                    // Reconstruct tab-separated line
+                                    const dateStr = r.purchaseDate ? new Date(r.purchaseDate).toLocaleDateString('tr-TR') : '';
+                                    return `${dateStr}\t${r.typeLabel}\t${r.symbol}\t${r.name}\t${r.transactionType === 'buy' ? 'Alis' : 'Satis'}\t${r.quantity}\t${r.price}\t${r.platform || ''}`;
+                                }).join('\n');
+
+                                setInputData(text);
                                 setStep('input');
                                 setIsVerified(false);
                                 setHasErrors(false);

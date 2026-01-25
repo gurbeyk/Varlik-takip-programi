@@ -11,6 +11,7 @@ interface SummaryCardsProps {
   totalDebt: number;
   netWorth: number;
   monthlyChange: number;
+  monthlyChangeAmount?: number;
   isLoading?: boolean;
   assets?: Asset[];
 }
@@ -30,7 +31,7 @@ function formatPercent(value: number): string {
   return `${prefix}${value.toFixed(2)}%`;
 }
 
-export function SummaryCards({ totalAssets, totalDebt, netWorth, monthlyChange, isLoading, assets = [] }: SummaryCardsProps) {
+export function SummaryCards({ totalAssets, totalDebt, netWorth, monthlyChange, monthlyChangeAmount, isLoading, assets = [] }: SummaryCardsProps) {
   const [showTotalUSD, setShowTotalUSD] = useState(false);
   const [exchangeRate, setExchangeRate] = useState(32);
 
@@ -115,11 +116,11 @@ export function SummaryCards({ totalAssets, totalDebt, netWorth, monthlyChange, 
       title: "Aylık Değişim",
       value: formatPercent(monthlyChange),
       icon: monthlyChange >= 0 ? TrendingUp : TrendingDown,
-      iconBg: monthlyChange >= 0 
-        ? "bg-emerald-100 dark:bg-emerald-900/30" 
+      iconBg: monthlyChange >= 0
+        ? "bg-emerald-100 dark:bg-emerald-900/30"
         : "bg-orange-100 dark:bg-orange-900/30",
-      iconColor: monthlyChange >= 0 
-        ? "text-emerald-600 dark:text-emerald-400" 
+      iconColor: monthlyChange >= 0
+        ? "text-emerald-600 dark:text-emerald-400"
         : "text-orange-600 dark:text-orange-400",
       change: monthlyChange,
       testId: "card-monthly-change",
@@ -161,19 +162,25 @@ export function SummaryCards({ totalAssets, totalDebt, netWorth, monthlyChange, 
             </div>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${
-              card.change !== null 
-                ? card.change >= 0 
-                  ? 'text-emerald-600 dark:text-emerald-400' 
-                  : 'text-orange-600 dark:text-orange-400'
-                : 'text-foreground'
-            }`}>
+            <div className={`text-2xl font-bold ${card.change !== null
+              ? card.change >= 0
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-orange-600 dark:text-orange-400'
+              : 'text-foreground'
+              }`}>
               {card.value}
             </div>
             {card.title === "Aylık Değişim" && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Son 30 gün
-              </p>
+              <div className="flex flex-col">
+                {monthlyChangeAmount !== undefined && (
+                  <span className={`text-xs font-semibold ${monthlyChangeAmount >= 0 ? 'text-emerald-600' : 'text-orange-600'}`}>
+                    ({monthlyChangeAmount >= 0 ? '+' : ''}{formatCurrency(monthlyChangeAmount, 'TRY')})
+                  </span>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  Son 30 gün
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>

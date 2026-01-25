@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SummaryCards } from "@/components/summary-cards";
 import { AssetBreakdown } from "@/components/asset-breakdown";
 import { ProfitLossSummary } from "@/components/profit-loss-summary";
+import { MonthlyChangeBreakdown } from "@/components/monthly-change-breakdown";
 import { AssetDistributionChart } from "@/components/asset-distribution-chart";
 import { PerformanceChart } from "@/components/performance-chart";
 import { PortfolioPerformanceChart } from "@/components/portfolio-performance-chart"; // Added import
@@ -15,6 +16,8 @@ interface PortfolioSummary {
   totalDebt: number;
   netWorth: number;
   monthlyChange: number;
+  monthlyChangeAmount?: number;
+  monthlyChangeBreakdown?: Record<string, { amount: number; percentage: number }>;
 }
 
 export default function Home() {
@@ -73,9 +76,12 @@ export default function Home() {
         totalDebt={summary?.totalDebt || 0}
         netWorth={summary?.netWorth || 0}
         monthlyChange={summary?.monthlyChange || 0}
+        monthlyChangeAmount={summary?.monthlyChangeAmount}
         isLoading={isLoading}
         assets={assets}
       />
+
+      <MonthlyChangeBreakdown data={summary?.monthlyChangeBreakdown} isLoading={isLoading} />
 
       <AssetBreakdown assets={assets} isLoading={assetsLoading} />
 

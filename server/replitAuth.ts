@@ -93,7 +93,7 @@ export async function setupAuth(app: Express) {
       }
 
       req.user = mockUser;
-      req.isAuthenticated = () => true;
+      req.isAuthenticated = (() => true) as any;
       next();
     });
     return;

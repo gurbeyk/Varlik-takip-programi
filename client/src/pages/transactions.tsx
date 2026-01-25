@@ -36,12 +36,21 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { type Transaction, assetTypeLabels } from "@shared/schema";
 
-function formatCurrency(value: number): string {
+type TransactionWithSymbol = Transaction & { assetSymbol: string | null };
+
+function formatCurrency(value: number, currency: string = 'TRY'): string {
   return new Intl.NumberFormat('tr-TR', {
     style: 'currency',
-    currency: 'TRY',
+    currency: currency || 'TRY',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
@@ -59,7 +68,7 @@ function formatDate(date: Date | string | null): string {
 }
 
 export default function Transactions() {
-  const { data: transactions = [], isLoading } = useQuery<Transaction[]>({
+  const { data: transactions = [], isLoading } = useQuery<TransactionWithSymbol[]>({
     queryKey: ["/api/transactions"],
   });
 
@@ -78,6 +87,10 @@ export default function Transactions() {
   const [location, setLocation] = useLocation();
   const [filterAsset, setFilterAsset] = useState<string | null>(null);
 
+  // New Local Filters
+  const [filterName, setFilterName] = useState("");
+  const [filterType, setFilterType] = useState<string>("all");
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const assetParam = params.get("asset");
@@ -90,11 +103,27 @@ export default function Transactions() {
 
   const clearFilter = () => {
     setLocation("/islemler"); // This clears query params effectively by navigating to clean path
+    setFilterName("");
+    setFilterType("all");
   };
 
-  const filteredTransactions = filterAsset
-    ? transactions.filter(t => t.assetName === filterAsset)
-    : transactions;
+  const filteredTransactions = transactions.filter(t => {
+    // 1. URL Asset Filter
+    if (filterAsset && t.assetName !== filterAsset) return false;
+
+    // 2. Name Filter (Search)
+    if (filterName) {
+      const search = filterName.toLowerCase();
+      const matchesName = t.assetName.toLowerCase().includes(search);
+      const matchesSymbol = t.assetSymbol?.toLowerCase().includes(search);
+      if (!matchesName && !matchesSymbol) return false;
+    }
+
+    // 3. Type Filter
+    if (filterType !== "all" && t.assetType !== filterType) return false;
+
+    return true;
+  });
 
 
   const deleteMutation = useMutation({
@@ -246,18 +275,56 @@ export default function Transactions() {
         )}
       </div>
 
-      {filterAsset && (
-        <div className="bg-muted/50 p-4 rounded-lg flex items-center justify-between border">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Şu an filtreleniyor:</span>
+      <div className="bg-muted/30 p-4 rounded-lg flex flex-col md:flex-row gap-4 border">
+
+        {/* URL Filter Badge (if active) */}
+        {filterAsset && (
+          <div className="flex items-center gap-2 md:mr-4">
+            <span className="text-sm font-medium whitespace-nowrap">Seçili Varlık:</span>
             <Badge variant="outline" className="bg-background">{filterAsset}</Badge>
           </div>
-          <Button variant="ghost" size="sm" onClick={clearFilter} className="h-8 px-2 lg:px-3">
-            Filtreyi Temizle
+        )}
+
+        <div className="flex flex-1 items-center gap-4">
+          {/* Name Filter */}
+          <div className="flex-1 min-w-[200px]">
+            <Input
+              placeholder="Varlık adı veya sembol ara..."
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)}
+              className="bg-background"
+            />
+          </div>
+
+          {/* Type Filter */}
+          <div className="w-[200px]">
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="bg-background">
+                <SelectValue placeholder="Varlık Tipi" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Tipler</SelectItem>
+                <SelectItem value="fon">TEFAS Fon</SelectItem>
+                <SelectItem value="befas">BEFAS Fon</SelectItem>
+                <SelectItem value="hisse">BIST Hisse</SelectItem>
+                <SelectItem value="abd-hisse">ABD Hisse</SelectItem>
+                <SelectItem value="kripto">Kripto</SelectItem>
+                <SelectItem value="etf">ETF</SelectItem>
+                <SelectItem value="altin">Altın/Emtia</SelectItem>
+                <SelectItem value="gayrimenkul">Gayrimenkul</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Clear Button */}
+        {(filterAsset || filterName || filterType !== "all") && (
+          <Button variant="outline" size="default" onClick={clearFilter} className="px-4">
+            Filtreleri Temizle
             <X className="ml-2 h-4 w-4" />
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       <Card data-testid="table-transactions">
         <CardHeader>
@@ -267,9 +334,9 @@ export default function Transactions() {
           {filteredTransactions.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground mb-2">
-                {filterAsset ? `"${filterAsset}" için işlem bulunamadı.` : 'Henüz işlem kaydı yok.'}
+                {(filterAsset || filterName || filterType !== "all") ? 'Filtrelere uygun işlem bulunamadı.' : 'Henüz işlem kaydı yok.'}
               </p>
-              {!filterAsset && (
+              {!(filterAsset || filterName || filterType !== "all") && (
                 <p className="text-sm text-muted-foreground">
                   Varlık ekleyip güncellediğinizde işlemler burada görüntülenecek.
                 </p>
@@ -282,6 +349,8 @@ export default function Transactions() {
                   <TableRow>
                     <TableHead>İşlem</TableHead>
                     <TableHead>Varlık</TableHead>
+                    <TableHead>Platform</TableHead>
+                    <TableHead>Sembol</TableHead>
                     <TableHead>Tip</TableHead>
                     <TableHead className="text-right">Miktar</TableHead>
                     <TableHead className="text-right">Fiyat</TableHead>
@@ -321,6 +390,20 @@ export default function Transactions() {
                           {transaction.assetName}
                         </TableCell>
                         <TableCell>
+                          {transaction.platform && (
+                            <Badge variant="outline" className="text-xs">
+                              {transaction.platform}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {transaction.assetSymbol && (
+                            <Badge variant="outline" className="font-mono">
+                              {transaction.assetSymbol}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           <Badge variant="secondary">
                             {assetTypeLabels[transaction.assetType as keyof typeof assetTypeLabels] || transaction.assetType}
                           </Badge>
@@ -329,18 +412,18 @@ export default function Transactions() {
                           {Number(transaction.quantity).toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {formatCurrency(Number(transaction.price))}
+                          {formatCurrency(Number(transaction.price), transaction.currency || 'TRY')}
                         </TableCell>
                         <TableCell className={`text-right font-mono font-medium ${isBuy
                           ? 'text-emerald-600 dark:text-emerald-400'
                           : 'text-red-600 dark:text-red-400'
                           }`}>
-                          {isBuy ? '+' : '-'}{formatCurrency(Number(transaction.totalAmount))}
+                          {isBuy ? '+' : '-'}{formatCurrency(Number(transaction.totalAmount), transaction.currency || 'TRY')}
                         </TableCell>
                         <TableCell className="text-right font-mono">
                           {transaction.type === 'sell' && transaction.realizedPnL ? (
                             <span className={Number(transaction.realizedPnL) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-orange-600 dark:text-orange-400'}>
-                              {Number(transaction.realizedPnL) >= 0 ? '+' : ''}{formatCurrency(Number(transaction.realizedPnL))}
+                              {Number(transaction.realizedPnL) >= 0 ? '+' : ''}{formatCurrency(Number(transaction.realizedPnL), transaction.currency || 'TRY')}
                             </span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
